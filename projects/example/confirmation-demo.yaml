@@ -37,4 +37,5 @@ systemPrompt: |
   当需要新增评论时，优先调用 create_comment 工具。
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   requireConfirmation: true

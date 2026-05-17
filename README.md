@@ -322,6 +322,7 @@ analysis:
 ```yaml
 toolPolicy:
   maxConsecutiveCalls: 6
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: save_customer_analysis
       requireConfirmation: true
@@ -388,12 +389,15 @@ connectors:
 
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: save_customer_analysis
       requireConfirmation: true
 ```
 
 Tool parameters support strict schemas, including `enum`, nested object `properties`, and array `items`. Invalid model output is rejected before a company write API is called.
+
+`toolPolicy.confirmationTimeoutMs` controls how long a pending human approval stays valid. It is measured in milliseconds and defaults to `900000` when omitted.
 
 The project file tells agent-bridge:
 

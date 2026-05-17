@@ -60,6 +60,7 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: create_comment
       requireConfirmation: true

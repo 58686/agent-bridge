@@ -48,4 +48,5 @@ systemPrompt: |
   当需要查询或更新业务数据时，优先调用 API 工具，而不是凭空回答。
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   requireConfirmation: true

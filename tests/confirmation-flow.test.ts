@@ -486,6 +486,7 @@ class FakeToolExecutionRepository implements ToolExecutionRepository {
 
 async function createAgent(options?: {
   sessionId?: string;
+  project?: ProjectConfig;
   sessions?: FakeSessionRepository;
   confirmations?: FakeConfirmationRepository;
   approvalGrants?: FakeApprovalGrantRepository;
@@ -498,7 +499,7 @@ async function createAgent(options?: {
 
   const agent = new RuntimeAgent(
     {
-      project: createConfirmationProject(),
+      project: options?.project ?? createConfirmationProject(),
       sessionId: options?.sessionId,
       debug: false,
       persistence: {
@@ -557,6 +558,29 @@ describe('tool confirmation flow', () => {
       expect(approvalGrants.grants).toHaveLength(1);
       expect(approvalGrants.consumedRequestIds).toContain(first.pendingConfirmation!.id);
     } finally {
+      await agent.destroy();
+    }
+  });
+
+  it('uses configured confirmation timeout when creating approval requests', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+    const project = createConfirmationProject();
+    project.toolPolicy = {
+      ...project.toolPolicy,
+      confirmationTimeoutMs: 60_000,
+    };
+    const { agent, confirmations } = await createAgent({ project });
+
+    try {
+      const first = await agent.run('create comment');
+
+      expect(first.pendingConfirmation).toBeDefined();
+      expect(confirmations.createdRequests).toHaveLength(1);
+      expect(confirmations.createdRequests[0].expiresAt).toBe('2026-01-01T00:01:00.000Z');
+    } finally {
+      vi.useRealTimers();
       await agent.destroy();
     }
   });

@@ -31,6 +31,8 @@ import {
 } from '../persistence/interfaces.js';
 import { ApprovalGrantRecord, SessionRecord, SessionRestoreState, SessionStatus } from '../persistence/types.js';
 
+const DEFAULT_CONFIRMATION_TIMEOUT_MS = 15 * 60 * 1000;
+
 type RuntimePersistence = {
   sessions: NonNullable<AgentPersistence['sessions']>;
   confirmations: NonNullable<AgentPersistence['confirmations']>;
@@ -732,7 +734,7 @@ export abstract class BaseAgent {
           status: 'pending',
           createdAt: confirmation.createdAt,
           updatedAt: confirmation.createdAt,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          expiresAt: new Date(Date.now() + this.getConfirmationTimeoutMs()).toISOString(),
         });
         await this.persistence.sessions.updateStatus(this.state.sessionId, 'waiting_confirmation', {
           updatedAt: confirmation.createdAt,
@@ -804,6 +806,10 @@ export abstract class BaseAgent {
 
       return { result, duration };
     }
+  }
+
+  protected getConfirmationTimeoutMs(): number {
+    return this.config.project.toolPolicy?.confirmationTimeoutMs ?? DEFAULT_CONFIRMATION_TIMEOUT_MS;
   }
 
   protected getToolConfirmationRequirement(toolName: string): boolean {

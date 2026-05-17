@@ -215,6 +215,8 @@ export interface ProjectConfig {
     maxConsecutiveCalls?: number;
     /** Whether all tools require confirmation. */
     requireConfirmation?: boolean;
+    /** Confirmation request expiry timeout in milliseconds. Defaults to 15 minutes. */
+    confirmationTimeoutMs?: number;
     /** Legacy allow-list that can bypass confirmation for named tools. */
     allowedTools?: string[];
     /** Block-list for named tools. */

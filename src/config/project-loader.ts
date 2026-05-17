@@ -110,6 +110,7 @@ export class ProjectLoader {
       if (requireConfirmation !== undefined && typeof requireConfirmation !== 'boolean') {
         issues.push({ path: 'toolPolicy.requireConfirmation', message: 'toolPolicy.requireConfirmation must be boolean' });
       }
+      validatePositiveInteger(toolPolicy, 'confirmationTimeoutMs', 'toolPolicy.confirmationTimeoutMs', issues);
 
       this.validateConfirmationRules(toolPolicy.confirmationRules, issues);
     }

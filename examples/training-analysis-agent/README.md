@@ -159,5 +159,6 @@ For a real company integration:
 - keep real tokens and model API keys in environment variables or a secret manager
 - tune `analysis.levels` to match your compliance or learning standard
 - keep `save_training_analysis` behind confirmation if humans must review AI decisions
+- tune `toolPolicy.confirmationTimeoutMs` if your approval SLA is shorter or longer than 15 minutes
 - store final results through your existing business API, not direct database writes
 - use audit exports to review who approved saves and what data was written

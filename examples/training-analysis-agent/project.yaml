@@ -144,6 +144,7 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 6
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: save_training_analysis
       requireConfirmation: true

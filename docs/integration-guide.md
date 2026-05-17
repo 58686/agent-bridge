@@ -170,6 +170,7 @@ You can use either a global confirmation policy or tool-specific rules. Tool-spe
 ```yaml
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: create_comment
       requireConfirmation: true
@@ -219,6 +220,7 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: your_write_tool
       requireConfirmation: true
@@ -247,6 +249,7 @@ Current startup validation checks:
 - API auth type: `none`, `bearer`, or `apiKey`
 - string arrays such as `queryParams` and `bodyParams`
 - parameter type, description, required flag, enum values, array items, and object properties
+- `toolPolicy.confirmationTimeoutMs` must be a positive integer when provided
 - state-changing API tools (`POST`, `PUT`, `PATCH`, `DELETE`) require either `toolPolicy.requireConfirmation: true` or a matching `toolPolicy.confirmationRules` entry
 
 This makes configuration mistakes visible before a company API is called.

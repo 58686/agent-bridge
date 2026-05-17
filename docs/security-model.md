@@ -107,12 +107,14 @@ Recommended default for early internal testing:
 ```yaml
 toolPolicy:
   requireConfirmation: true
+  confirmationTimeoutMs: 900000
 ```
 
 Once your tool list is clear, prefer tool-specific rules so read tools can run directly while write tools pause for approval:
 
 ```yaml
 toolPolicy:
+  confirmationTimeoutMs: 900000
   confirmationRules:
     - tool: save_training_analysis
       requireConfirmation: true
@@ -120,7 +122,7 @@ toolPolicy:
       requireConfirmation: true
 ```
 
-This keeps the approval boundary explicit without slowing down safe read operations.
+This keeps the approval boundary explicit without slowing down safe read operations. `confirmationTimeoutMs` limits how long a pending approval remains valid; expired approvals must be re-created from a fresh run.
 
 ### Avoid direct production database writes
 

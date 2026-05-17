@@ -62,7 +62,7 @@ toolPolicy:
     expect(() => ProjectLoader.load(projectPath)).not.toThrow();
   });
 
-  it('rejects invalid confirmation rule entries', () => {
+  it('rejects invalid confirmation rule entries and timeout', () => {
     const issues = expectInvalidProject(`
 id: invalid-rule-project
 name: Invalid Rule Project
@@ -71,6 +71,7 @@ model:
   model: mock-model
 connectors: []
 toolPolicy:
+  confirmationTimeoutMs: 0
   confirmationRules:
     - tool: save_result
       requireConfirmation: yes
@@ -79,6 +80,7 @@ toolPolicy:
 
     expect(issues).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ path: 'toolPolicy.confirmationTimeoutMs' }),
         expect.objectContaining({ path: 'toolPolicy.confirmationRules[0].requireConfirmation' }),
         expect.objectContaining({ path: 'toolPolicy.confirmationRules[1].tool' }),
       ]),

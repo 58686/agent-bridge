@@ -56,6 +56,7 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   requireConfirmation: true
 
 memory:

@@ -16,6 +16,7 @@ systemPrompt: |
   在回答前，优先考虑是否需要调用工具来获取更准确的信息。
 toolPolicy:
   maxConsecutiveCalls: 5
+  confirmationTimeoutMs: 900000
   requireConfirmation: false
 memory:
   enabled: true
