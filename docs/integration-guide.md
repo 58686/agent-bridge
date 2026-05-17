@@ -189,6 +189,19 @@ model:
   provider: openai
   model: gpt-4o-mini
   envApiKey: OPENAI_API_KEY
+  timeoutMs: 60000
+
+analysis:
+  standardId: your-business-standard-v1
+  levels:
+    - level: healthy
+      riskLevel: low
+      when:
+        score:
+          gte: 80
+  fallback:
+    level: needs_attention
+    riskLevel: high
 
 connectors:
   - id: company-api
@@ -224,6 +237,8 @@ Current startup validation checks:
 
 - required root fields: `id`, `name`, `model`, `connectors`
 - required model fields: `model.provider`, `model.model`
+- model options such as `model.timeoutMs`, `model.maxTokens`, `model.temperature`, `model.envApiKey`, and `model.baseUrl`
+- analysis standards such as `analysis.levels`, rule conditions, fallback risk level, and recommendations
 - duplicate connector ids
 - duplicate API tool names across configured API connectors
 - API connector `baseUrl`

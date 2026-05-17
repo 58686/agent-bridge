@@ -75,6 +75,29 @@ export abstract class BaseAgent {
 
   protected abstract createConnector(config: ConnectorConfig): Connector;
 
+  protected buildInitialSystemMessages(): Message[] {
+    const messages: Message[] = [];
+
+    if (this.config.project.systemPrompt) {
+      messages.push({
+        role: 'system',
+        content: this.config.project.systemPrompt,
+      });
+    }
+
+    if (this.config.project.analysis) {
+      messages.push({
+        role: 'system',
+        content: [
+          'Analysis configuration JSON. Use these business rules as the source of truth when scoring or classifying analysis results:',
+          JSON.stringify(this.config.project.analysis, null, 2),
+        ].join('\n'),
+      });
+    }
+
+    return messages;
+  }
+
   get sessionId(): string {
     return this.state.sessionId;
   }
@@ -297,12 +320,7 @@ export abstract class BaseAgent {
     if (existingSession) {
       await this.restoreSessionState();
     } else {
-      if (this.config.project.systemPrompt) {
-        this.state.messages.push({
-          role: 'system',
-          content: this.config.project.systemPrompt,
-        });
-      }
+      this.state.messages.push(...this.buildInitialSystemMessages());
 
       const now = new Date().toISOString();
       await this.persistence.sessions.create({
@@ -590,8 +608,8 @@ export abstract class BaseAgent {
   }
 
   async clearHistory(): Promise<void> {
-    const systemMessage = this.state.messages.find((message) => message.role === 'system');
-    this.state.messages = systemMessage ? [systemMessage] : [];
+    const systemMessages = this.state.messages.filter((message) => message.role === 'system');
+    this.state.messages = systemMessages;
     await this.persistSessionSnapshot();
   }
 

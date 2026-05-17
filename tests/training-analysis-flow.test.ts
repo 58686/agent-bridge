@@ -37,6 +37,7 @@ function createTrainingProject(baseUrl: string): ProjectConfig {
               parameters: {
                 userId: {
                   type: 'string',
+                  description: 'User id.',
                   required: true,
                 },
               },
@@ -48,20 +49,49 @@ function createTrainingProject(baseUrl: string): ProjectConfig {
               path: '/training/analysis',
               bodyParams: ['userId', 'standardId', 'scoreLevel', 'riskLevel', 'summary', 'recommendations', 'evidence'],
               parameters: {
-                userId: { type: 'string', required: true },
-                standardId: { type: 'string', required: true },
-                scoreLevel: { type: 'string', required: true },
-                riskLevel: { type: 'string', required: true },
-                summary: { type: 'string', required: true },
-                recommendations: { type: 'array', required: true },
-                evidence: { type: 'object', required: true },
+                userId: { type: 'string', description: 'User id.', required: true },
+                standardId: { type: 'string', description: 'Analysis standard id.', required: true },
+                scoreLevel: { type: 'string', description: 'Score level.', required: true },
+                riskLevel: { type: 'string', description: 'Risk level.', required: true },
+                summary: { type: 'string', description: 'Summary.', required: true },
+                recommendations: { type: 'array', description: 'Recommendations.', required: true },
+                evidence: { type: 'object', description: 'Evidence metrics.', required: true },
               },
             },
           ],
         },
       },
     ],
-    systemPrompt: 'Analyze training data against the configured standard and save the result.',
+    analysis: {
+      standardId: 'strict-training-standard-2026',
+      levels: [
+        {
+          level: 'gold',
+          riskLevel: 'low',
+          when: {
+            completionRate: { gte: 1 },
+            averageScore: { gte: 90 },
+            overdueCourses: { eq: 0 },
+          },
+          recommendations: ['Assign advanced compliance content.'],
+        },
+        {
+          level: 'pass',
+          riskLevel: 'medium',
+          when: {
+            completionRate: { gte: 0.8 },
+            averageScore: { gte: 70 },
+          },
+          recommendations: ['Review weak courses with the manager.'],
+        },
+      ],
+      fallback: {
+        level: 'needs_attention',
+        riskLevel: 'high',
+        recommendations: ['Create a remediation plan.'],
+      },
+    },
+    systemPrompt: 'Analyze training data against the injected Analysis configuration JSON and save the result.',
     toolPolicy: {
       maxConsecutiveCalls: 6,
       confirmationRules: [
@@ -163,7 +193,7 @@ describe('training analysis example flow', () => {
     }
   });
 
-  it('fetches training stats, waits for save approval, then saves a structured result', async () => {
+  it('fetches training stats, waits for save approval, then saves a structured result using configured rules', async () => {
     const api = await startTrainingApi();
     cleanup.push(api.close);
 
@@ -199,12 +229,13 @@ describe('training analysis example flow', () => {
     expect(api.savedAnalyses).toHaveLength(1);
     expect(api.savedAnalyses[0]).toMatchObject({
       userId: 'USER-001',
-      standardId: 'annual-compliance-2026',
-      scoreLevel: 'excellent',
+      standardId: 'strict-training-standard-2026',
+      scoreLevel: 'gold',
       riskLevel: 'low',
+      recommendations: ['Assign advanced compliance content.'],
     });
     expect(resumed.response).toContain('培训分析已保存成功');
     expect(resumed.response).toContain('用户：USER-001');
-    expect(resumed.response).toContain('等级：excellent');
+    expect(resumed.response).toContain('等级：gold');
   });
 });

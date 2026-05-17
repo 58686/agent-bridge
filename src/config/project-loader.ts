@@ -84,8 +84,12 @@ export class ProjectLoader {
 
     const model = getObject(project, 'model', 'model', issues);
     if (model) {
-      requireString(model, 'provider', 'model.provider', issues);
-      requireString(model, 'model', 'model.model', issues);
+      this.validateModelConfig(model, issues);
+    }
+
+    const analysis = getOptionalObject(project, 'analysis', 'analysis', issues);
+    if (analysis) {
+      this.validateAnalysisConfig(analysis, issues);
     }
 
     const connectors = getArray(project, 'connectors', 'connectors', issues);
@@ -112,6 +116,99 @@ export class ProjectLoader {
 
     if (issues.length > 0) {
       this.throwInvalid(filePath, issues);
+    }
+  }
+
+  private static validateModelConfig(model: Record<string, unknown>, issues: ValidationIssue[]): void {
+    requireString(model, 'provider', 'model.provider', issues);
+    requireString(model, 'model', 'model.model', issues);
+    validateOptionalString(model, 'apiKey', 'model.apiKey', issues);
+    validateOptionalString(model, 'envApiKey', 'model.envApiKey', issues);
+    validateOptionalString(model, 'baseUrl', 'model.baseUrl', issues);
+    validatePositiveInteger(model, 'maxTokens', 'model.maxTokens', issues);
+    validatePositiveInteger(model, 'timeoutMs', 'model.timeoutMs', issues);
+
+    const temperature = model.temperature;
+    if (temperature !== undefined && (typeof temperature !== 'number' || temperature < 0 || temperature > 2)) {
+      issues.push({ path: 'model.temperature', message: 'model.temperature must be a number between 0 and 2' });
+    }
+
+    const extra = model.extra;
+    if (extra !== undefined && !isPlainObject(extra)) {
+      issues.push({ path: 'model.extra', message: 'model.extra must be an object' });
+    }
+  }
+
+  private static validateAnalysisConfig(analysis: Record<string, unknown>, issues: ValidationIssue[]): void {
+    validateOptionalString(analysis, 'standardId', 'analysis.standardId', issues);
+
+    const levels = analysis.levels;
+    if (levels !== undefined) {
+      if (!Array.isArray(levels) || levels.length === 0) {
+        issues.push({ path: 'analysis.levels', message: 'analysis.levels must be a non-empty array when provided' });
+      } else {
+        levels.forEach((level, index) => {
+          const levelPath = `analysis.levels[${index}]`;
+          if (!isPlainObject(level)) {
+            issues.push({ path: levelPath, message: 'analysis level must be an object' });
+            return;
+          }
+
+          requireString(level, 'level', `${levelPath}.level`, issues);
+          validateRiskLevel(level.riskLevel, `${levelPath}.riskLevel`, issues);
+          const when = getObject(level, 'when', `${levelPath}.when`, issues);
+          if (when) {
+            this.validateAnalysisConditions(when, `${levelPath}.when`, issues);
+          }
+          validateStringArray(level, 'recommendations', `${levelPath}.recommendations`, issues);
+        });
+      }
+    }
+
+    const fallback = analysis.fallback;
+    if (fallback !== undefined) {
+      if (!isPlainObject(fallback)) {
+        issues.push({ path: 'analysis.fallback', message: 'analysis.fallback must be an object' });
+      } else {
+        validateOptionalString(fallback, 'level', 'analysis.fallback.level', issues);
+        if (fallback.riskLevel !== undefined) {
+          validateRiskLevel(fallback.riskLevel, 'analysis.fallback.riskLevel', issues);
+        }
+        validateStringArray(fallback, 'recommendations', 'analysis.fallback.recommendations', issues);
+      }
+    }
+  }
+
+  private static validateAnalysisConditions(when: Record<string, unknown>, pathPrefix: string, issues: ValidationIssue[]): void {
+    for (const [metric, condition] of Object.entries(when)) {
+      const conditionPath = `${pathPrefix}.${metric}`;
+      if (!isPlainObject(condition)) {
+        issues.push({ path: conditionPath, message: 'analysis condition must be an object' });
+        continue;
+      }
+
+      const allowedKeys = new Set(['gte', 'lte', 'eq']);
+      for (const key of Object.keys(condition)) {
+        if (!allowedKeys.has(key)) {
+          issues.push({ path: `${conditionPath}.${key}`, message: 'analysis condition supports only gte, lte, and eq' });
+        }
+      }
+
+      const hasOperator = ['gte', 'lte', 'eq'].some((key) => condition[key] !== undefined);
+      if (!hasOperator) {
+        issues.push({ path: conditionPath, message: 'analysis condition must define at least one operator' });
+      }
+
+      for (const key of ['gte', 'lte'] as const) {
+        if (condition[key] !== undefined && typeof condition[key] !== 'number') {
+          issues.push({ path: `${conditionPath}.${key}`, message: `analysis condition ${key} must be a number` });
+        }
+      }
+
+      const eq = condition.eq;
+      if (eq !== undefined && !['string', 'number', 'boolean'].includes(typeof eq)) {
+        issues.push({ path: `${conditionPath}.eq`, message: 'analysis condition eq must be a string, number, or boolean' });
+      }
     }
   }
 
@@ -307,6 +404,22 @@ function getOptionalObject(input: Record<string, unknown>, key: string, path: st
     return undefined;
   }
   return value;
+}
+
+function validateOptionalString(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): void {
+  const value = input[key];
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    issues.push({ path, message: `${path} must be a non-empty string` });
+  }
+}
+
+function validateRiskLevel(value: unknown, path: string, issues: ValidationIssue[]): void {
+  if (!['low', 'medium', 'high'].includes(String(value))) {
+    issues.push({ path, message: `${path} must be one of low, medium, high` });
+  }
 }
 
 function validateStringArray(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): void {

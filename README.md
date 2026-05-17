@@ -209,7 +209,16 @@ npm run build
 node dist/server-main.js --project projects/example/openai-project.yaml --port 3000
 ```
 
-A project config can also use an OpenAI-compatible gateway with `baseUrl`.
+A project config can also use an OpenAI-compatible gateway with `baseUrl` and a model request timeout:
+
+```yaml
+model:
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
+```
 
 ## Connect your own REST API in 5 minutes
 
@@ -267,7 +276,29 @@ connectors:
               required: true
 ```
 
-4. Define the safety boundary. A common pattern is to require approval only for write tools.
+4. Optional: define analysis standards as configuration instead of hard-coding them in code.
+
+```yaml
+analysis:
+  standardId: customer-risk-v1
+  levels:
+    - level: low_risk
+      riskLevel: low
+      when:
+        overdueInvoices:
+          eq: 0
+        healthScore:
+          gte: 80
+      recommendations:
+        - Keep the current customer success cadence.
+  fallback:
+    level: needs_attention
+    riskLevel: high
+    recommendations:
+      - Ask a human owner to review this customer.
+```
+
+5. Define the safety boundary. A common pattern is to require approval only for write tools.
 
 ```yaml
 toolPolicy:
@@ -277,7 +308,7 @@ toolPolicy:
       requireConfirmation: true
 ```
 
-5. Start the server.
+6. Start the server.
 
 ```bash
 npm run build
@@ -300,6 +331,19 @@ model:
   provider: openai
   model: gpt-4o-mini
   envApiKey: OPENAI_API_KEY
+  timeoutMs: 60000
+
+analysis:
+  standardId: customer-risk-v1
+  levels:
+    - level: healthy
+      riskLevel: low
+      when:
+        healthScore:
+          gte: 80
+  fallback:
+    level: needs_attention
+    riskLevel: high
 
 connectors:
   - id: company-api
@@ -332,9 +376,10 @@ toolPolicy:
 
 The project file tells agent-bridge:
 
-- which model to use
+- which model to use, including OpenAI-compatible `baseUrl` and `timeoutMs`
 - which company systems are connected
 - which tools are available
+- which configurable analysis standards should be injected into the model context
 - how risky tool calls should be confirmed
 - how long session memory should be kept
 

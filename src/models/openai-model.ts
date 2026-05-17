@@ -8,6 +8,8 @@ import {
 } from '../core/types.js';
 import { ConfigurationError, ValidationError } from '../errors.js';
 
+const DEFAULT_OPENAI_TIMEOUT_MS = 60000;
+
 interface OpenAIChatCompletionChoice {
   message: {
     content?: string | null;
@@ -50,42 +52,62 @@ export class OpenAIModel implements ChatModel {
     }
 
     const baseUrl = this.config.baseUrl ?? 'https://api.openai.com/v1';
-    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        temperature: this.config.temperature ?? 0.2,
-        max_tokens: this.config.maxTokens,
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          name: message.name,
-          tool_call_id: message.toolCallId,
-          tool_calls: message.toolCalls?.map((toolCall) => ({
-            id: toolCall.id,
-            type: 'function',
-            function: {
-              name: toolCall.name,
-              arguments: JSON.stringify(toolCall.arguments),
-            },
-          })),
-        })),
-        tools: (tools ?? []).length > 0
-          ? (tools ?? []).map((tool) => ({
+    const timeoutMs = this.resolveTimeoutMs();
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        signal: abortController.signal,
+        body: JSON.stringify({
+          model: this.config.model,
+          temperature: this.config.temperature ?? 0.2,
+          max_tokens: this.config.maxTokens,
+          messages: messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+            name: message.name,
+            tool_call_id: message.toolCallId,
+            tool_calls: message.toolCalls?.map((toolCall) => ({
+              id: toolCall.id,
               type: 'function',
               function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: this.toJsonSchema(tool.parameters),
+                name: toolCall.name,
+                arguments: JSON.stringify(toolCall.arguments),
               },
-            }))
-          : undefined,
-      }),
-    });
+            })),
+          })),
+          tools: (tools ?? []).length > 0
+            ? (tools ?? []).map((tool) => ({
+                type: 'function',
+                function: {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: this.toJsonSchema(tool.parameters),
+                },
+              }))
+            : undefined,
+        }),
+      });
+    } catch (error) {
+      if (this.isAbortError(error)) {
+        throw new ValidationError(
+          `OpenAI request timed out after ${timeoutMs}ms`,
+          'OPENAI_REQUEST_TIMEOUT',
+          { model: this.config.model, baseUrl, timeout: true, timeoutMs }
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const rawText = await response.text();
     const payload = this.tryParseJson(rawText) as OpenAIChatCompletionResponse | string;
@@ -143,6 +165,14 @@ export class OpenAIModel implements ChatModel {
     }
 
     return process.env.OPENAI_API_KEY;
+  }
+
+  private resolveTimeoutMs(): number {
+    return this.config.timeoutMs ?? DEFAULT_OPENAI_TIMEOUT_MS;
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError';
   }
 
   private parseToolCalls(

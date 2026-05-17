@@ -1,4 +1,7 @@
 import {
+  AnalysisConfig,
+  AnalysisCondition,
+  AnalysisLevelRule,
   ChatModel,
   Message,
   ModelConfig,
@@ -21,7 +24,7 @@ export class MockModel implements ChatModel {
       const trainingSaveTool = availableTools.find((tool) => tool.name === 'save_training_analysis');
       if (lastMessage.name === 'get_training_stats' && trainingSaveTool) {
         const stats = this.extractToolData(lastMessage.content) as Record<string, unknown>;
-        const analysis = this.buildTrainingAnalysis(stats);
+        const analysis = this.buildTrainingAnalysis(stats, this.extractAnalysisConfig(messages));
 
         return {
           content: 'Training statistics loaded. I prepared a structured analysis result and will save it through save_training_analysis.',
@@ -44,7 +47,7 @@ export class MockModel implements ChatModel {
       }
 
       return {
-        content: `工具执行结果：${lastMessage.content}`,
+        content: `Tool execution result: ${lastMessage.content}`,
         finishReason: 'stop',
       };
     }
@@ -60,7 +63,7 @@ export class MockModel implements ChatModel {
       normalizedContent.includes('available tools')
     ) {
       return {
-        content: `当前可用工具：${availableTools.map((tool) => tool.name).join(', ') || '无'}`,
+        content: `Available tools: ${availableTools.map((tool) => tool.name).join(', ') || 'none'}`,
         finishReason: 'stop',
       };
     }
@@ -94,7 +97,7 @@ export class MockModel implements ChatModel {
     const echoTool = availableTools.find((tool) => tool.name === 'echo_text');
     if (echoTool && (content.includes('调用 echo') || content.includes('回显') || normalizedContent.includes('echo'))) {
       return {
-        content: '我将调用 echo_text 工具来处理这次请求。',
+        content: 'I will call the echo_text tool for this request.',
         toolCalls: [
           {
             id: 'mock-echo-call',
@@ -118,14 +121,14 @@ export class MockModel implements ChatModel {
       const suffix = count > 1 ? `-${count}` : '';
 
       return {
-        content: '我准备调用 create_comment 工具，但这可能需要确认。',
+        content: 'I am preparing to call create_comment. This may require confirmation.',
         toolCalls: [
           {
             id: `mock-create-comment-call${suffix}`,
             name: 'create_comment',
             arguments: {
               ticketId: 'TICKET-001',
-              content: '来自 MockModel 的演示评论',
+              content: 'Demo comment from MockModel',
             },
           },
         ],
@@ -134,7 +137,7 @@ export class MockModel implements ChatModel {
     }
 
     return {
-      content: `MockModel 已收到请求：${content}`,
+      content: `MockModel received: ${content}`,
       finishReason: 'stop',
     };
   }
@@ -151,6 +154,30 @@ export class MockModel implements ChatModel {
     } catch {
       return {};
     }
+  }
+
+  private extractAnalysisConfig(messages: Message[]): AnalysisConfig | undefined {
+    const systemMessages = messages.filter((message) => message.role === 'system').map((message) => message.content);
+    for (const content of systemMessages) {
+      const marker = 'Analysis configuration JSON.';
+      const markerIndex = content.indexOf(marker);
+      if (markerIndex === -1) {
+        continue;
+      }
+
+      const jsonStart = content.indexOf('{', markerIndex);
+      if (jsonStart === -1) {
+        continue;
+      }
+
+      try {
+        return JSON.parse(content.slice(jsonStart)) as AnalysisConfig;
+      } catch {
+        continue;
+      }
+    }
+
+    return undefined;
   }
 
   private formatTrainingSaveResult(content: string): string {
@@ -192,47 +219,89 @@ export class MockModel implements ChatModel {
     ].join('\n');
   }
 
-  private buildTrainingAnalysis(stats: Record<string, unknown>): Record<string, unknown> {
+  private buildTrainingAnalysis(stats: Record<string, unknown>, analysisConfig?: AnalysisConfig): Record<string, unknown> {
+    const metrics = {
+      completionRate: this.toNumber(stats.completionRate),
+      averageScore: this.toNumber(stats.averageScore),
+      overdueCourses: this.toNumber(stats.overdueCourses),
+      requiredCourses: this.toNumber(stats.requiredCourses),
+      completedCourses: this.toNumber(stats.completedCourses),
+    };
+
     const userId = String(stats.userId ?? 'USER-001');
-    const standardId = String(stats.standardId ?? 'training-standard-v1');
-    const completionRate = this.toNumber(stats.completionRate);
-    const averageScore = this.toNumber(stats.averageScore);
-    const overdueCourses = this.toNumber(stats.overdueCourses);
-    const requiredCourses = this.toNumber(stats.requiredCourses);
-    const completedCourses = this.toNumber(stats.completedCourses);
+    const standardId = String(analysisConfig?.standardId ?? stats.standardId ?? 'training-standard-v1');
+    const matchedRule = this.findMatchingLevel(metrics, analysisConfig?.levels);
+    const fallback = analysisConfig?.fallback;
 
-    let scoreLevel = 'needs_attention';
-    let riskLevel = 'high';
-    const recommendations: string[] = [];
-
-    if (completionRate >= 0.9 && averageScore >= 85 && overdueCourses === 0) {
-      scoreLevel = 'excellent';
-      riskLevel = 'low';
-      recommendations.push('Keep the current learning cadence and consider assigning advanced courses.');
-    } else if (completionRate >= 0.75 && averageScore >= 70) {
-      scoreLevel = 'qualified';
-      riskLevel = overdueCourses > 0 ? 'medium' : 'low';
-      recommendations.push('Follow up on overdue courses and review weak knowledge areas.');
-    } else {
-      recommendations.push('Create a remediation plan and schedule manager follow-up.');
-      recommendations.push('Prioritize required courses with low completion or low exam scores.');
-    }
+    const scoreLevel = matchedRule?.level ?? fallback?.level ?? 'needs_attention';
+    const riskLevel = matchedRule?.riskLevel ?? fallback?.riskLevel ?? 'high';
+    const recommendations = matchedRule?.recommendations ?? fallback?.recommendations ?? [
+      'Create a remediation plan and schedule manager follow-up.',
+      'Prioritize required courses with low completion or low exam scores.',
+    ];
 
     return {
       userId,
       standardId,
       scoreLevel,
       riskLevel,
-      summary: `User ${userId} completed ${completedCourses}/${requiredCourses} required courses with average score ${averageScore}.`,
+      summary: `User ${userId} completed ${metrics.completedCourses}/${metrics.requiredCourses} required courses with average score ${metrics.averageScore}.`,
       recommendations,
-      evidence: {
-        completionRate,
-        averageScore,
-        overdueCourses,
-        requiredCourses,
-        completedCourses,
-      },
+      evidence: metrics,
     };
+  }
+
+  private findMatchingLevel(
+    metrics: Record<string, number>,
+    levels: AnalysisLevelRule[] | undefined,
+  ): AnalysisLevelRule | undefined {
+    const configuredLevels = levels && levels.length > 0 ? levels : this.defaultTrainingLevels();
+    return configuredLevels.find((level) => this.matchesAllConditions(metrics, level.when));
+  }
+
+  private defaultTrainingLevels(): AnalysisLevelRule[] {
+    return [
+      {
+        level: 'excellent',
+        riskLevel: 'low',
+        when: {
+          completionRate: { gte: 0.9 },
+          averageScore: { gte: 85 },
+          overdueCourses: { eq: 0 },
+        },
+        recommendations: ['Keep the current learning cadence and consider assigning advanced courses.'],
+      },
+      {
+        level: 'qualified',
+        riskLevel: 'medium',
+        when: {
+          completionRate: { gte: 0.75 },
+          averageScore: { gte: 70 },
+        },
+        recommendations: ['Follow up on overdue courses and review weak knowledge areas.'],
+      },
+    ];
+  }
+
+  private matchesAllConditions(metrics: Record<string, number>, conditions: Record<string, AnalysisCondition>): boolean {
+    return Object.entries(conditions).every(([metric, condition]) => {
+      const actual = metrics[metric];
+      if (actual === undefined) {
+        return false;
+      }
+
+      if (condition.gte !== undefined && actual < condition.gte) {
+        return false;
+      }
+      if (condition.lte !== undefined && actual > condition.lte) {
+        return false;
+      }
+      if (condition.eq !== undefined && actual !== condition.eq) {
+        return false;
+      }
+
+      return true;
+    });
   }
 
   private toNumber(value: unknown): number {

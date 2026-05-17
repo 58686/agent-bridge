@@ -1,13 +1,8 @@
 import { AgentPersistence } from '../persistence/interfaces.js';
 
 /**
- * agent-bridge - 核心类型定义
- * 定义 Agent、Tool、Connector 等核心接口
+ * Core type definitions for agent-bridge.
  */
-
-// ============================================================================
-// 消息类型
-// ============================================================================
 
 export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -25,10 +20,6 @@ export interface ToolCall {
   arguments: Record<string, unknown>;
 }
 
-// ============================================================================
-// 工具类型
-// ============================================================================
-
 export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   description: string;
@@ -40,32 +31,32 @@ export interface ToolParameter {
 }
 
 export interface ToolDefinition {
-  /** 工具唯一标识 */
+  /** Unique tool name exposed to the model. */
   name: string;
-  /** 工具描述 */
+  /** Human-readable tool description. */
   description: string;
-  /** 参数定义 */
+  /** Tool argument schema. */
   parameters: Record<string, ToolParameter>;
-  /** 执行函数 */
+  /** Tool execution function. */
   execute: (args: Record<string, unknown>, context: ToolContext) => Promise<ToolResult>;
-  /** 是否需要确认 */
+  /** Whether this tool requires explicit confirmation. */
   requiresConfirmation?: boolean;
-  /** 危险等级 */
+  /** Risk level used by the approval policy. */
   riskLevel?: 'low' | 'medium' | 'high';
-  /** 所属连接器 */
+  /** Connector that owns this tool. */
   connectorId?: string;
 }
 
 export interface ToolContext {
-  /** 当前会话ID */
+  /** Current session id. */
   sessionId: string;
-  /** 项目配置 */
+  /** Project configuration. */
   projectConfig: ProjectConfig;
-  /** 运行时状态 */
+  /** Runtime state shared within the session. */
   state: Map<string, unknown>;
-  /** 日志记录器 */
+  /** Runtime logger. */
   logger: Logger;
-  /** 请求中止信号 */
+  /** Optional cancellation signal for long-running tools. */
   abortSignal?: AbortSignal;
 }
 
@@ -93,66 +84,60 @@ export interface ToolConfirmationResolution {
   reason?: string;
 }
 
-// ============================================================================
-// 连接器类型
-// ============================================================================
-
 export interface ConnectorConfig {
-  /** 连接器ID */
+  /** Connector id. */
   id: string;
-  /** 连接器类型 */
+  /** Connector type, for example api or echo. */
   type: string;
-  /** 连接器名称 */
+  /** Display name. */
   name: string;
-  /** 连接器配置 */
+  /** Connector-specific configuration. */
   config: Record<string, unknown>;
-  /** 启用的工具列表 */
+  /** Optional allow-list for exposed tools. */
   enabledTools?: string[];
-  /** 禁用的工具列表 */
+  /** Optional block-list for exposed tools. */
   disabledTools?: string[];
 }
 
 export interface Connector {
-  /** 连接器ID */
+  /** Connector id. */
   id: string;
-  /** 连接器名称 */
+  /** Display name. */
   name: string;
-  /** 连接器描述 */
+  /** Description shown to operators. */
   description: string;
-  /** 初始化 */
+  /** Initialize the connector from project config. */
   initialize(config: ConnectorConfig): Promise<void>;
-  /** 获取可用工具 */
+  /** Return tools exposed by this connector. */
   getTools(): ToolDefinition[];
-  /** 健康检查 */
+  /** Lightweight health check. */
   healthCheck(): Promise<boolean>;
-  /** 销毁 */
+  /** Release connector resources. */
   destroy(): Promise<void>;
 }
 
 export type ConnectorFactory = (config: ConnectorConfig) => Connector;
 
-// ============================================================================
-// 模型类型
-// ============================================================================
-
 export type ModelProvider = 'openai' | 'anthropic' | 'google' | 'azure' | 'ollama' | 'custom';
 
 export interface ModelConfig {
-  /** 模型提供商 */
+  /** Model provider. Currently custom and openai are implemented. */
   provider: ModelProvider;
-  /** 模型名称 */
+  /** Model name. */
   model: string;
-  /** API Key */
+  /** Inline API key. Prefer envApiKey for real deployments. */
   apiKey?: string;
-  /** 从环境变量读取 API Key 的变量名 */
+  /** Environment variable name that stores the API key. */
   envApiKey?: string;
-  /** API Base URL */
+  /** API base URL. OpenAI-compatible gateways can be used here. */
   baseUrl?: string;
-  /** 温度 */
+  /** Sampling temperature. */
   temperature?: number;
-  /** 最大Token */
+  /** Maximum output tokens. */
   maxTokens?: number;
-  /** 其他参数 */
+  /** HTTP timeout for model calls, in milliseconds. */
+  timeoutMs?: number;
+  /** Provider-specific options. */
   extra?: Record<string, unknown>;
 }
 
@@ -168,40 +153,71 @@ export interface ModelResponse {
 }
 
 export interface ChatModel {
-  /** 模型配置 */
+  /** Model configuration. */
   config: ModelConfig;
-  /** 发送消息 */
+  /** Send messages to the model. */
   chat(messages: Message[], tools?: ToolDefinition[]): Promise<ModelResponse>;
-  /** 流式发送 */
+  /** Optional streaming interface. */
   stream?(messages: Message[], tools?: ToolDefinition[]): AsyncIterableIterator<ModelResponse>;
 }
 
-// ============================================================================
-// 项目配置
-// ============================================================================
+export interface AnalysisCondition {
+  /** Value must be greater than or equal to this threshold. */
+  gte?: number;
+  /** Value must be less than or equal to this threshold. */
+  lte?: number;
+  /** Value must equal this value. */
+  eq?: string | number | boolean;
+}
+
+export interface AnalysisLevelRule {
+  /** Output score level, for example excellent or qualified. */
+  level: string;
+  /** Risk level to save with this level. */
+  riskLevel: 'low' | 'medium' | 'high';
+  /** Metric conditions that must all match. */
+  when: Record<string, AnalysisCondition>;
+  /** Suggested next actions for this level. */
+  recommendations?: string[];
+}
+
+export interface AnalysisConfig {
+  /** Business standard id used in saved results. */
+  standardId?: string;
+  /** Ordered rules. The first matching rule wins. */
+  levels?: AnalysisLevelRule[];
+  /** Fallback when no level rule matches. */
+  fallback?: {
+    level?: string;
+    riskLevel?: 'low' | 'medium' | 'high';
+    recommendations?: string[];
+  };
+}
 
 export interface ProjectConfig {
-  /** 项目ID */
+  /** Project id. */
   id: string;
-  /** 项目名称 */
+  /** Project display name. */
   name: string;
-  /** 项目描述 */
+  /** Project description. */
   description?: string;
-  /** 模型配置 */
+  /** Model configuration. */
   model: ModelConfig;
-  /** 连接器配置列表 */
+  /** Connector configurations. */
   connectors: ConnectorConfig[];
-  /** 系统提示词 */
+  /** System prompt sent to the model. */
   systemPrompt?: string;
-  /** 工具调用策略 */
+  /** Optional analysis rules injected into the model context. */
+  analysis?: AnalysisConfig;
+  /** Tool execution policy. */
   toolPolicy?: {
-    /** 最大连续调用次数 */
+    /** Maximum consecutive model/tool loop iterations. */
     maxConsecutiveCalls?: number;
-    /** 是否需要确认 */
+    /** Whether all tools require confirmation. */
     requireConfirmation?: boolean;
-    /** 允许的工具白名单 */
+    /** Legacy allow-list that can bypass confirmation for named tools. */
     allowedTools?: string[];
-    /** 禁止的工具黑名单 */
+    /** Block-list for named tools. */
     forbiddenTools?: string[];
     /** Tool-specific confirmation rules. Later rules override earlier rules. */
     confirmationRules?: Array<{
@@ -209,78 +225,70 @@ export interface ProjectConfig {
       requireConfirmation: boolean;
     }>;
   };
-  /** 记忆配置 */
+  /** Session memory configuration. */
   memory?: {
-    /** 是否启用 */
+    /** Whether memory is enabled. */
     enabled?: boolean;
-    /** 最大消息数 */
+    /** Maximum message count retained by sliding memory. */
     maxMessages?: number;
-    /** 记忆类型 */
+    /** Memory strategy. */
     type?: 'sliding' | 'summary' | 'vector';
   };
-  /** 其他配置 */
+  /** Extra project-specific configuration. */
   extra?: Record<string, unknown>;
 }
 
-// ============================================================================
-// Agent 类型
-// ============================================================================
-
 export interface AgentConfig {
-  /** 项目配置 */
+  /** Project configuration. */
   project: ProjectConfig;
-  /** 会话ID */
+  /** Existing or new session id. */
   sessionId?: string;
-  /** 创建/拥有该会话的 actorId */
+  /** Actor that owns the session. */
   actorId?: string;
-  /** 调试模式 */
+  /** Debug mode flag. */
   debug?: boolean;
-  /** 持久化适配器 */
+  /** Optional persistence adapter. */
   persistence?: AgentPersistence;
 }
 
 export interface AgentState {
-  /** 会话ID */
+  /** Current session id. */
   sessionId: string;
-  /** 消息历史 */
+  /** Message history. */
   messages: Message[];
-  /** 已加载的连接器 */
+  /** Loaded connectors. */
   connectors: Map<string, Connector>;
-  /** 可用工具 */
+  /** Available tools. */
   tools: Map<string, ToolDefinition>;
-  /** 运行时状态 */
+  /** Runtime state. */
   state: Map<string, unknown>;
-  /** 待确认请求 */
+  /** Pending confirmation requests. */
   pendingConfirmations: Map<string, ToolConfirmationRequest>;
-  /** 是否正在运行 */
+  /** Whether the agent is currently running. */
   isRunning: boolean;
 }
 
 export interface AgentRunResult {
-  /** 最终响应 */
+  /** Final assistant response. */
   response: string;
-  /** 消息历史 */
+  /** Message history. */
   messages: Message[];
-  /** 工具调用记录 */
+  /** Tool execution records from this run. */
   toolCalls: Array<{
     tool: string;
     args: Record<string, unknown>;
     result: ToolResult;
     duration: number;
   }>;
-  /** 当前待确认请求 */
+  /** Current pending confirmation, if any. */
   pendingConfirmation?: ToolConfirmationRequest;
-  /** Token 使用统计 */
+  /** Token usage reported by the model. */
   usage?: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
   };
 }
-
-// ============================================================================
-// 工具类
-// ============================================================================
 
 export interface Logger {
   debug(message: string, ...args: unknown[]): void;
@@ -289,11 +297,7 @@ export interface Logger {
   error(message: string, ...args: unknown[]): void;
 }
 
-// ============================================================================
-// 事件类型
-// ============================================================================
-
-export type AgentEventType = 
+export type AgentEventType =
   | 'start'
   | 'message'
   | 'tool_call'

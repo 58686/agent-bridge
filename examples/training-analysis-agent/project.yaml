@@ -1,10 +1,16 @@
 id: training-analysis-agent
 name: Training Analysis Agent
-description: A runnable example that fetches employee training statistics, asks AI to analyze them against a standard, and saves the result through a company API.
+description: A runnable example that fetches employee training statistics, asks AI to analyze them against a configurable standard, and saves the result through a company API.
 
 model:
   provider: custom
   model: mock-model
+  # For a real OpenAI or OpenAI-compatible model, use:
+  # provider: openai
+  # model: gpt-4o-mini
+  # envApiKey: OPENAI_API_KEY
+  # timeoutMs: 60000
+  # baseUrl: https://api.openai.com/v1
 
 connectors:
   - id: company-training-api
@@ -73,13 +79,40 @@ connectors:
               description: Key training metrics used by the analysis.
               required: true
 
+analysis:
+  standardId: annual-compliance-2026
+  levels:
+    - level: excellent
+      riskLevel: low
+      when:
+        completionRate:
+          gte: 0.9
+        averageScore:
+          gte: 85
+        overdueCourses:
+          eq: 0
+      recommendations:
+        - Keep the current learning cadence and consider assigning advanced courses.
+    - level: qualified
+      riskLevel: medium
+      when:
+        completionRate:
+          gte: 0.75
+        averageScore:
+          gte: 70
+      recommendations:
+        - Follow up on overdue courses and review weak knowledge areas.
+  fallback:
+    level: needs_attention
+    riskLevel: high
+    recommendations:
+      - Create a remediation plan and schedule manager follow-up.
+      - Prioritize required courses with low completion or low exam scores.
+
 systemPrompt: |
   You are a training analytics assistant for an enterprise learning platform.
   When asked to analyze a user's training status, first call get_training_stats.
-  Then compare the statistics against this standard:
-  - excellent: completionRate >= 0.90, averageScore >= 85, and overdueCourses = 0
-  - qualified: completionRate >= 0.75 and averageScore >= 70
-  - needs_attention: anything below qualified
+  Then compare the statistics against the injected Analysis configuration JSON.
   Save the structured result by calling save_training_analysis.
   Never invent training statistics. Use company API data as the source of truth.
 

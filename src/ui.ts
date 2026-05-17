@@ -53,6 +53,12 @@ export function getMinimalUiHtml(): string {
     .kv { display: grid; grid-template-columns: 92px 1fr; gap: 4px 8px; align-items: start; font-size: 12px; }
     .kv .k { color: #6b7280; }
     .status-box { padding: 10px; border-radius: 12px; background: #f8fafc; border: 1px solid #e5e7eb; }
+    .analysis-card { background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); }
+    .analysis-card strong { display: block; margin-bottom: 6px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+    .metric { border: 1px solid #e5e7eb; border-radius: 10px; padding: 7px; background: #fff; }
+    .metric .label { color: #6b7280; font-size: 11px; }
+    .metric .value { font-weight: 800; font-size: 14px; }
     .empty { padding: 12px; border: 1px dashed #d1d5db; border-radius: 12px; color: #6b7280; text-align: center; }
     .error-panel { display: none; }
     .error-panel.show { display: block; }
@@ -102,6 +108,7 @@ export function getMinimalUiHtml(): string {
           <button class="ghost" data-action="refresh-current">Refresh details</button>
         </div>
         <div id="status" class="muted"></div>
+        <div id="analysisResult" class="card analysis-card empty">No saved analysis result yet</div>
         <pre id="messages">[]</pre>
       </div>
     </section>
@@ -225,6 +232,60 @@ export function getMinimalUiHtml(): string {
       $('lastRefresh').textContent = new Date().toLocaleTimeString();
     }
 
+    function parseJsonText(text) {
+      try {
+        return JSON.parse(text || '{}');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function findLatestAnalysisRecord(messages) {
+      if (!Array.isArray(messages)) return null;
+      for (const message of [...messages].reverse()) {
+        if (message.role !== 'tool' || message.name !== 'save_training_analysis') continue;
+        const payload = parseJsonText(message.content);
+        const record = payload && payload.data && payload.data.record ? payload.data.record : null;
+        if (record) return record;
+      }
+      return null;
+    }
+
+    function renderAnalysisResult(messages) {
+      const target = $('analysisResult');
+      const record = findLatestAnalysisRecord(messages);
+      if (!record) {
+        target.className = 'card analysis-card empty';
+        target.textContent = 'No saved analysis result yet';
+        return;
+      }
+
+      const evidence = record.evidence || {};
+      const recommendations = Array.isArray(record.recommendations) ? record.recommendations : [];
+      target.className = 'card analysis-card';
+      target.innerHTML =
+        '<strong>Last saved analysis result</strong>' +
+        '<div>' + pill(record.scoreLevel || '-') + pill(record.riskLevel || '-') + '</div>' +
+        '<div class="kv" style="margin-top:8px">' +
+          '<div class="k">analysisId</div><div class="mono">' + escapeHtml(record.analysisId || '-') + '</div>' +
+          '<div class="k">userId</div><div class="mono">' + escapeHtml(record.userId || '-') + '</div>' +
+          '<div class="k">standard</div><div class="mono">' + escapeHtml(record.standardId || '-') + '</div>' +
+          '<div class="k">summary</div><div>' + escapeHtml(record.summary || '-') + '</div>' +
+        '</div>' +
+        '<div class="metric-grid">' +
+          metric('completion', evidence.completionRate) +
+          metric('avg score', evidence.averageScore) +
+          metric('overdue', evidence.overdueCourses) +
+          metric('completed', (evidence.completedCourses == null ? '-' : evidence.completedCourses) + '/' + (evidence.requiredCourses == null ? '-' : evidence.requiredCourses)) +
+        '</div>' +
+        '<div class="muted" style="margin-top:8px">Recommendations</div>' +
+        '<ul>' + (recommendations.map((item) => '<li>' + escapeHtml(item) + '</li>').join('') || '<li>None</li>') + '</ul>';
+    }
+
+    function metric(label, value) {
+      return '<div class="metric"><div class="label">' + escapeHtml(label) + '</div><div class="value">' + escapeHtml(value == null ? '-' : value) + '</div></div>';
+    }
+
     async function guarded(fn) {
       if (state.busy) return;
       state.busy = true;
@@ -329,7 +390,9 @@ export function getMinimalUiHtml(): string {
 
     async function loadMessages() {
       const data = await api('/sessions/' + encodeURIComponent(state.sessionId) + '/messages');
-      $('messages').textContent = json(data.messages || data);
+      const messages = data.messages || data;
+      $('messages').textContent = json(messages);
+      renderAnalysisResult(messages);
     }
 
     async function loadPending() {

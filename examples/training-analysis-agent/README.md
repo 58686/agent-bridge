@@ -87,13 +87,36 @@ analyze training data for USER-002
 
 ## Analysis standard
 
-The demo standard is defined in `project.yaml`:
+The demo standard is configured in `project.yaml` under `analysis`, not hard-coded in application code:
 
-| Level | Rule |
-|---|---|
-| `excellent` | `completionRate >= 0.90`, `averageScore >= 85`, and `overdueCourses = 0` |
-| `qualified` | `completionRate >= 0.75` and `averageScore >= 70` |
-| `needs_attention` | Anything below `qualified` |
+```yaml
+analysis:
+  standardId: annual-compliance-2026
+  levels:
+    - level: excellent
+      riskLevel: low
+      when:
+        completionRate:
+          gte: 0.9
+        averageScore:
+          gte: 85
+        overdueCourses:
+          eq: 0
+      recommendations:
+        - Keep the current learning cadence and consider assigning advanced courses.
+    - level: qualified
+      riskLevel: medium
+      when:
+        completionRate:
+          gte: 0.75
+        averageScore:
+          gte: 70
+  fallback:
+    level: needs_attention
+    riskLevel: high
+```
+
+agent-bridge injects this configuration into the model context so a real model can use the same business standard. The mock model also reads it during tests and demos.
 
 The saved result includes:
 
@@ -132,7 +155,9 @@ GET  /training/analysis?userId=USER-001
 For a real company integration:
 
 - replace the mock API with your training platform API
-- keep real tokens in environment variables or a secret manager
+- switch `model.provider` from `custom` to `openai` or an OpenAI-compatible gateway when using a real model
+- keep real tokens and model API keys in environment variables or a secret manager
+- tune `analysis.levels` to match your compliance or learning standard
 - keep `save_training_analysis` behind confirmation if humans must review AI decisions
 - store final results through your existing business API, not direct database writes
 - use audit exports to review who approved saves and what data was written
