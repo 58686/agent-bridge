@@ -9,6 +9,9 @@ This directory contains runnable and reference examples for connecting agent-bri
 | [`company-ticket-agent`](./company-ticket-agent) | Runnable mock company ticket API + agent-bridge project config | No |
 | [`company-workflow-agent`](./company-workflow-agent) | Runnable mock company workflow API + approval-boundary example | No |
 | [`training-analysis-agent`](./training-analysis-agent) | Runnable training-data analysis flow: fetch stats, analyze by standard, save result | No |
+| [`../projects/example/openai-project.yaml`](../projects/example/openai-project.yaml) | Minimal OpenAI + echo tool config | Yes, `OPENAI_API_KEY` |
+| [`../projects/example/customer-openai-api.yaml`](../projects/example/customer-openai-api.yaml) | OpenAI + company REST API template | Yes, `OPENAI_API_KEY` and company API token |
+| [`../projects/example/training-openai-api.yaml`](../projects/example/training-openai-api.yaml) | OpenAI-powered training analysis template | Yes, `OPENAI_API_KEY` and training API token |
 
 ## Recommended learning path
 
@@ -50,9 +53,18 @@ $env:TRAINING_API_TOKEN='example-training-token'
 node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
 ```
 
-6. Replace the mock API with your own dev/staging API.
+6. Try the OpenAI training template against the same mock API:
+
+```bash
+$env:OPENAI_API_KEY='your-openai-key'
+$env:TRAINING_API_BASE_URL='http://127.0.0.1:4020'
+$env:TRAINING_API_TOKEN='example-training-token'
+node dist/server-main.js --project projects/example/training-openai-api.yaml --port 3000
+```
+
+7. Replace the mock API with your own dev/staging API.
 
 ## Planned examples
 
-- OpenAI + company REST API
 - Custom connector skeleton
+- Database connector examples

@@ -348,18 +348,62 @@ export class ProjectLoader {
 
       const parameters = getOptionalObject(tool, 'parameters', `${toolPath}.parameters`, issues);
       if (parameters) {
-        for (const [paramName, parameter] of Object.entries(parameters)) {
-          if (!isPlainObject(parameter)) {
-            issues.push({ path: `${toolPath}.parameters.${paramName}`, message: 'Tool parameter must be an object' });
-            continue;
-          }
-          if (!['string', 'number', 'boolean', 'object', 'array'].includes(String(parameter.type))) {
-            issues.push({ path: `${toolPath}.parameters.${paramName}.type`, message: 'Tool parameter type is invalid' });
-          }
-          requireString(parameter, 'description', `${toolPath}.parameters.${paramName}.description`, issues);
-        }
+        this.validateToolParameters(parameters, `${toolPath}.parameters`, issues);
       }
     });
+  }
+
+  private static validateToolParameters(parameters: Record<string, unknown>, pathPrefix: string, issues: ValidationIssue[]): void {
+    for (const [paramName, parameter] of Object.entries(parameters)) {
+      this.validateToolParameter(parameter, `${pathPrefix}.${paramName}`, issues);
+    }
+  }
+
+  private static validateToolParameter(parameter: unknown, parameterPath: string, issues: ValidationIssue[]): void {
+    if (!isPlainObject(parameter)) {
+      issues.push({ path: parameterPath, message: 'Tool parameter must be an object' });
+      return;
+    }
+
+    const type = String(parameter.type);
+    if (!['string', 'number', 'boolean', 'object', 'array'].includes(type)) {
+      issues.push({ path: `${parameterPath}.type`, message: 'Tool parameter type is invalid' });
+    }
+    requireString(parameter, 'description', `${parameterPath}.description`, issues);
+
+    const required = parameter.required;
+    if (required !== undefined && typeof required !== 'boolean') {
+      issues.push({ path: `${parameterPath}.required`, message: 'Tool parameter required must be boolean' });
+    }
+
+    const enumValues = parameter.enum;
+    if (enumValues !== undefined) {
+      if (!Array.isArray(enumValues) || enumValues.length === 0) {
+        issues.push({ path: `${parameterPath}.enum`, message: 'Tool parameter enum must be a non-empty array' });
+      } else if (enumValues.some((item) => !['string', 'number', 'boolean'].includes(typeof item))) {
+        issues.push({ path: `${parameterPath}.enum`, message: 'Tool parameter enum values must be strings, numbers, or booleans' });
+      }
+    }
+
+    if (type === 'array') {
+      if (parameter.items !== undefined) {
+        this.validateToolParameter(parameter.items, `${parameterPath}.items`, issues);
+      }
+    } else if (parameter.items !== undefined) {
+      issues.push({ path: `${parameterPath}.items`, message: 'Tool parameter items is only valid for array parameters' });
+    }
+
+    if (type === 'object') {
+      if (parameter.properties !== undefined) {
+        if (!isPlainObject(parameter.properties)) {
+          issues.push({ path: `${parameterPath}.properties`, message: 'Tool parameter properties must be an object' });
+        } else {
+          this.validateToolParameters(parameter.properties, `${parameterPath}.properties`, issues);
+        }
+      }
+    } else if (parameter.properties !== undefined) {
+      issues.push({ path: `${parameterPath}.properties`, message: 'Tool parameter properties is only valid for object parameters' });
+    }
   }
 
   private static throwInvalid(filePath: string, issues: ValidationIssue[]): never {

@@ -1,16 +1,15 @@
-id: training-analysis-agent
-name: Training Analysis Agent
-description: A runnable example that fetches employee training statistics, asks AI to analyze them against a configurable standard, and saves the result through a company API.
+id: training-openai-api-project
+name: Training OpenAI API Project
+description: OpenAI-powered training analysis project that calls a company training API and saves approved analysis results.
 
 model:
-  provider: custom
-  model: mock-model
-  # For a real OpenAI or OpenAI-compatible model, use:
-  # provider: openai
-  # model: gpt-4o-mini
-  # envApiKey: OPENAI_API_KEY
-  # timeoutMs: 60000
-  # baseUrl: https://api.openai.com/v1
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
+  temperature: 0.2
+  maxTokens: 1000
 
 connectors:
   - id: company-training-api
@@ -20,7 +19,7 @@ connectors:
       baseUrl: ${TRAINING_API_BASE_URL}
       timeoutMs: 30000
       defaultHeaders:
-        x-client-name: agent-bridge-training-example
+        x-client-name: agent-bridge-training-openai-example
       auth:
         type: bearer
         token: ${TRAINING_API_TOKEN}
@@ -60,12 +59,12 @@ connectors:
               required: true
             scoreLevel:
               type: string
-              description: Result level such as excellent, qualified, or needs_attention.
+              description: Result level.
               enum: [excellent, qualified, needs_attention]
               required: true
             riskLevel:
               type: string
-              description: Risk level such as low, medium, or high.
+              description: Risk level.
               enum: [low, medium, high]
               required: true
             summary:
@@ -138,8 +137,10 @@ analysis:
 systemPrompt: |
   You are a training analytics assistant for an enterprise learning platform.
   When asked to analyze a user's training status, first call get_training_stats.
-  Then compare the statistics against the injected Analysis configuration JSON.
+  Compare the statistics against the injected Analysis configuration JSON.
   Save the structured result by calling save_training_analysis.
+  The saved scoreLevel must be one of: excellent, qualified, needs_attention.
+  The saved riskLevel must be one of: low, medium, high.
   Never invent training statistics. Use company API data as the source of truth.
 
 toolPolicy:

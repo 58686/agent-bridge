@@ -246,7 +246,7 @@ Current startup validation checks:
 - API tool `name`, `description`, `path`, and `method`
 - API auth type: `none`, `bearer`, or `apiKey`
 - string arrays such as `queryParams` and `bodyParams`
-- parameter type and description
+- parameter type, description, required flag, enum values, array items, and object properties
 - state-changing API tools (`POST`, `PUT`, `PATCH`, `DELETE`) require either `toolPolicy.requireConfirmation: true` or a matching `toolPolicy.confirmationRules` entry
 
 This makes configuration mistakes visible before a company API is called.

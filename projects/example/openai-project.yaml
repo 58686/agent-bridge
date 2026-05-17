@@ -1,25 +1,32 @@
 id: openai-example-project
 name: OpenAI Example Project
-description: 使用 OpenAI 模型驱动的通用 Agent 示例配置
+description: Minimal OpenAI-powered agent-bridge project for smoke testing model calls.
+
 model:
   provider: openai
   model: gpt-4o-mini
   envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
   temperature: 0.2
   maxTokens: 800
+
 connectors:
   - id: echo-demo
     type: echo
     name: Echo Demo Connector
     config:
       projectName: demo
+
 systemPrompt: |
-  你是一个通用项目 Agent。
-  你可以通过连接器访问不同公司的项目能力。
-  当工具能提供更准确信息时，优先调用工具。
+  You are a general-purpose internal agent.
+  Use tools when they can provide more accurate information.
+  Do not invent company records.
+
 toolPolicy:
   maxConsecutiveCalls: 5
   requireConfirmation: false
+
 memory:
   enabled: true
   maxMessages: 20

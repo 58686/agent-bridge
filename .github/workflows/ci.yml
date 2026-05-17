@@ -10,6 +10,10 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -29,9 +33,44 @@ jobs:
       - name: Run tests
         run: npm run test:run
 
-      - name: Validate training example config
+      - name: Validate project configs
         run: |
           TRAINING_API_BASE_URL=http://127.0.0.1:4020 TRAINING_API_TOKEN=example-training-token node --input-type=module -e "import { ProjectLoader } from './dist/config/project-loader.js'; const project = ProjectLoader.load('examples/training-analysis-agent/project.yaml'); console.log(project.id);"
+          OPENAI_API_KEY=test-key node --input-type=module -e "import { ProjectLoader } from './dist/config/project-loader.js'; const project = ProjectLoader.load('projects/example/openai-project.yaml'); console.log(project.id);"
+          COMPANY_API_BASE_URL=https://example.internal.api COMPANY_API_TOKEN=test-token OPENAI_API_KEY=test-key node --input-type=module -e "import { ProjectLoader } from './dist/config/project-loader.js'; const project = ProjectLoader.load('projects/example/customer-openai-api.yaml'); console.log(project.id);"
+          TRAINING_API_BASE_URL=http://127.0.0.1:4020 TRAINING_API_TOKEN=example-training-token OPENAI_API_KEY=test-key node --input-type=module -e "import { ProjectLoader } from './dist/config/project-loader.js'; const project = ProjectLoader.load('projects/example/training-openai-api.yaml'); console.log(project.id);"
+
+      - name: Training demo smoke test
+        shell: bash
+        run: |
+          node examples/training-analysis-agent/mock-api.mjs &
+          MOCK_PID=$!
+          cleanup() { kill $MOCK_PID 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:4020/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          TRAINING_API_BASE_URL=http://127.0.0.1:4020 TRAINING_API_TOKEN=example-training-token node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000 &
+          SERVER_PID=$!
+          cleanup_all() { kill $SERVER_PID 2>/dev/null || true; kill $MOCK_PID 2>/dev/null || true; }
+          trap cleanup_all EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          curl -v http://127.0.0.1:3000/health
+          exit 1
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Build Docker image
         run: docker build -t agent-bridge:ci .

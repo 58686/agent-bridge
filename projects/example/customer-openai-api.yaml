@@ -1,26 +1,31 @@
 id: customer-openai-api-project
 name: Customer OpenAI API Project
-description: 面向客户接入的最小 OpenAI + API Connector 示例配置
+description: Example OpenAI + REST API project for customer or ticket workflows.
+
 model:
   provider: openai
   model: gpt-4o-mini
   envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
   temperature: 0.2
   maxTokens: 800
+
 connectors:
   - id: company-api
     type: api
     name: Company API Connector
     config:
-      baseUrl: https://example.internal.api/
+      baseUrl: ${COMPANY_API_BASE_URL}
+      timeoutMs: 30000
       defaultHeaders:
         x-client-name: agent-bridge
       auth:
         type: bearer
-        token: YOUR_API_TOKEN
+        token: ${COMPANY_API_TOKEN}
       tools:
         - name: get_ticket
-          description: 根据工单 ID 查询工单详情
+          description: Get ticket details by ticket id.
           method: GET
           path: /tickets/detail
           queryParams:
@@ -28,10 +33,10 @@ connectors:
           parameters:
             ticketId:
               type: string
-              description: 工单 ID
+              description: Ticket id.
               required: true
         - name: create_comment
-          description: 为工单新增评论
+          description: Add a comment to a ticket.
           method: POST
           path: /tickets/comment
           bodyParams:
@@ -40,18 +45,25 @@ connectors:
           parameters:
             ticketId:
               type: string
-              description: 工单 ID
+              description: Ticket id.
               required: true
             content:
               type: string
-              description: 评论内容
+              description: Comment content.
               required: true
+
 systemPrompt: |
-  你是一个企业内部系统 Agent。
-  当需要查询或更新业务数据时，优先调用 API 工具，而不是凭空回答。
+  You are an internal company support agent.
+  Use company API tools for factual ticket data.
+  Do not invent ticket details.
+  Ask for confirmation before writing to company systems.
+
 toolPolicy:
   maxConsecutiveCalls: 5
-  requireConfirmation: true
+  confirmationRules:
+    - tool: create_comment
+      requireConfirmation: true
+
 memory:
   enabled: true
   maxMessages: 20

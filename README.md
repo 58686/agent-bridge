@@ -209,6 +209,16 @@ npm run build
 node dist/server-main.js --project projects/example/openai-project.yaml --port 3000
 ```
 
+For a real training-analysis chain, start the mock training API and use the OpenAI template:
+
+```bash
+node examples/training-analysis-agent/mock-api.mjs
+OPENAI_API_KEY=your_openai_api_key_here \
+TRAINING_API_BASE_URL=http://127.0.0.1:4020 \
+TRAINING_API_TOKEN=example-training-token \
+node dist/server-main.js --project projects/example/training-openai-api.yaml --port 3000
+```
+
 A project config can also use an OpenAI-compatible gateway with `baseUrl` and a model request timeout:
 
 ```yaml
@@ -254,6 +264,7 @@ connectors:
           parameters:
             customerId:
               type: string
+              description: Customer id.
               required: true
 
         - name: save_customer_analysis
@@ -264,16 +275,24 @@ connectors:
           parameters:
             customerId:
               type: string
+              description: Customer id.
               required: true
             summary:
               type: string
+              description: Human-readable analysis summary.
               required: true
             riskLevel:
               type: string
+              description: Risk level.
+              enum: [low, medium, high]
               required: true
             recommendations:
               type: array
+              description: Suggested next actions.
               required: true
+              items:
+                type: string
+                description: One recommendation.
 ```
 
 4. Optional: define analysis standards as configuration instead of hard-coding them in code.
@@ -373,6 +392,8 @@ toolPolicy:
     - tool: save_customer_analysis
       requireConfirmation: true
 ```
+
+Tool parameters support strict schemas, including `enum`, nested object `properties`, and array `items`. Invalid model output is rejected before a company write API is called.
 
 The project file tells agent-bridge:
 

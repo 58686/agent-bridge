@@ -24,7 +24,7 @@ export interface ToolParameter {
   type: 'string' | 'number' | 'boolean' | 'object' | 'array';
   description: string;
   required?: boolean;
-  enum?: string[];
+  enum?: Array<string | number | boolean>;
   default?: unknown;
   properties?: Record<string, ToolParameter>;
   items?: ToolParameter;

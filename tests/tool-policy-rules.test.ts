@@ -84,4 +84,72 @@ toolPolicy:
       ]),
     );
   });
+
+  it('rejects invalid nested tool parameter schema entries', () => {
+    const issues = expectInvalidProject(`
+id: invalid-schema-project
+name: Invalid Schema Project
+model:
+  provider: custom
+  model: mock-model
+connectors:
+  - id: company-api
+    type: api
+    name: Company API
+    config:
+      baseUrl: https://example.test
+      tools:
+        - name: save_result
+          description: Save result
+          method: POST
+          path: /results
+          parameters:
+            scoreLevel:
+              type: string
+              description: Score level
+              enum: []
+            tags:
+              type: array
+              description: Tags
+              items:
+                type: uuid
+            evidence:
+              type: object
+              description: Evidence
+              properties: []
+            invalidItems:
+              type: string
+              description: Invalid items
+              items:
+                type: string
+                description: Item
+            invalidProperties:
+              type: number
+              description: Invalid properties
+              properties:
+                nested:
+                  type: string
+                  description: Nested
+            requiredFlag:
+              type: string
+              description: Required flag
+              required: yes
+toolPolicy:
+  confirmationRules:
+    - tool: save_result
+      requireConfirmation: true
+`);
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.scoreLevel.enum' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.tags.items.type' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.tags.items.description' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.evidence.properties' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.invalidItems.items' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.invalidProperties.properties' }),
+        expect.objectContaining({ path: 'connectors[0].config.tools[0].parameters.requiredFlag.required' }),
+      ]),
+    );
+  });
 });

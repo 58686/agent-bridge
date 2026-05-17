@@ -26,7 +26,7 @@ export function validateToolArguments(
       if (parameter.required) {
         issues.push({
           path: key,
-          message: `缺少必填参数: ${key}`,
+          message: `Missing required parameter: ${key}`,
         });
       } else if (parameter.default !== undefined) {
         normalizedArgs[key] = parameter.default;
@@ -56,44 +56,57 @@ function validateValue(
   switch (parameter.type) {
     case 'string':
       if (typeof value !== 'string') {
-        issues.push({ path, message: `${path} 应为 string` });
+        issues.push({ path, message: `${path} must be a string` });
         return undefined;
       }
-      if (parameter.enum && !parameter.enum.includes(value)) {
-        issues.push({ path, message: `${path} 必须是 ${parameter.enum.join(', ')} 之一` });
+      if (!validateEnum(value, parameter, path, issues)) {
         return undefined;
       }
       return value;
 
     case 'number':
       if (typeof value !== 'number' || Number.isNaN(value)) {
-        issues.push({ path, message: `${path} 应为 number` });
+        issues.push({ path, message: `${path} must be a number` });
+        return undefined;
+      }
+      if (!validateEnum(value, parameter, path, issues)) {
         return undefined;
       }
       return value;
 
     case 'boolean':
       if (typeof value !== 'boolean') {
-        issues.push({ path, message: `${path} 应为 boolean` });
+        issues.push({ path, message: `${path} must be a boolean` });
+        return undefined;
+      }
+      if (!validateEnum(value, parameter, path, issues)) {
         return undefined;
       }
       return value;
 
-    case 'array':
+    case 'array': {
       if (!Array.isArray(value)) {
-        issues.push({ path, message: `${path} 应为 array` });
+        issues.push({ path, message: `${path} must be an array` });
         return undefined;
       }
+
       if (!parameter.items) {
         return value;
       }
-      return value
-        .map((item, index) => validateValue(item, parameter.items as ToolParameter, `${path}[${index}]`, issues))
-        .filter((item) => item !== undefined);
 
-    case 'object':
+      const arrayResult: unknown[] = [];
+      value.forEach((item, index) => {
+        const validatedItem = validateValue(item, parameter.items as ToolParameter, `${path}[${index}]`, issues);
+        if (validatedItem !== undefined) {
+          arrayResult.push(validatedItem);
+        }
+      });
+      return arrayResult;
+    }
+
+    case 'object': {
       if (!isPlainObject(value)) {
-        issues.push({ path, message: `${path} 应为 object` });
+        issues.push({ path, message: `${path} must be an object` });
         return undefined;
       }
 
@@ -110,7 +123,7 @@ function validateValue(
           if (childSchema.required) {
             issues.push({
               path: `${path}.${childKey}`,
-              message: `缺少必填参数: ${path}.${childKey}`,
+              message: `Missing required parameter: ${path}.${childKey}`,
             });
           } else if (childSchema.default !== undefined) {
             objectResult[childKey] = childSchema.default;
@@ -124,11 +137,25 @@ function validateValue(
         }
       }
       return objectResult;
+    }
 
     default:
-      issues.push({ path, message: `${path} 使用了不支持的参数类型` });
+      issues.push({ path, message: `${path} uses an unsupported parameter type` });
       return undefined;
   }
+}
+
+function validateEnum(value: string | number | boolean, parameter: ToolParameter, path: string, issues: ValidationIssue[]): boolean {
+  if (!parameter.enum) {
+    return true;
+  }
+
+  if (!parameter.enum.some((item) => item === value)) {
+    issues.push({ path, message: `${path} must be one of: ${parameter.enum.join(', ')}` });
+    return false;
+  }
+
+  return true;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
