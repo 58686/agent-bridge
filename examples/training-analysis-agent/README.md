@@ -73,8 +73,8 @@ analyze training data for USER-001
 ```
 
 3. Click **Run**.
-4. agent-bridge calls `get_training_stats` without approval because it is configured as an allowed read tool.
-5. The mock model prepares a structured result and calls `save_training_analysis`.
+4. agent-bridge calls `get_training_stats` without approval because no confirmation rule is attached to the read tool.
+5. The mock model prepares a structured result and calls `save_training_analysis`, which has a tool-specific confirmation rule.
 6. Because saving is a write operation, the session enters `waiting_confirmation`.
 7. Click **Approve**.
 8. The mock company API saves the result and agent-bridge records tool execution and audit events.

@@ -106,6 +106,8 @@ export class ProjectLoader {
       if (requireConfirmation !== undefined && typeof requireConfirmation !== 'boolean') {
         issues.push({ path: 'toolPolicy.requireConfirmation', message: 'toolPolicy.requireConfirmation must be boolean' });
       }
+
+      this.validateConfirmationRules(toolPolicy.confirmationRules, issues);
     }
 
     if (issues.length > 0) {
@@ -113,10 +115,51 @@ export class ProjectLoader {
     }
   }
 
+  private static validateConfirmationRules(value: unknown, issues: ValidationIssue[]): void {
+    if (value === undefined) {
+      return;
+    }
+
+    if (!Array.isArray(value)) {
+      issues.push({ path: 'toolPolicy.confirmationRules', message: 'toolPolicy.confirmationRules must be an array' });
+      return;
+    }
+
+    value.forEach((entry, index) => {
+      const rulePath = `toolPolicy.confirmationRules[${index}]`;
+      if (!isPlainObject(entry)) {
+        issues.push({ path: rulePath, message: 'confirmation rule must be an object' });
+        return;
+      }
+
+      requireString(entry, 'tool', `${rulePath}.tool`, issues);
+      if (typeof entry.requireConfirmation !== 'boolean') {
+        issues.push({ path: `${rulePath}.requireConfirmation`, message: 'confirmation rule requireConfirmation must be boolean' });
+      }
+    });
+  }
+
+  private static toolRequiresConfirmationByRule(toolName: string, rules: unknown[]): boolean | undefined {
+    let result: boolean | undefined;
+    for (const rule of rules) {
+      if (!isPlainObject(rule)) {
+        continue;
+      }
+
+      if (rule.tool === toolName && typeof rule.requireConfirmation === 'boolean') {
+        result = rule.requireConfirmation;
+      }
+    }
+
+    return result;
+  }
+
   private static validateConnectors(connectors: unknown[], project: Record<string, unknown>, issues: ValidationIssue[]): void {
     const connectorIds = new Set<string>();
     const toolNames = new Set<string>();
-    const requireConfirmation = (project.toolPolicy as { requireConfirmation?: unknown } | undefined)?.requireConfirmation === true;
+    const toolPolicy = project.toolPolicy as { requireConfirmation?: unknown; confirmationRules?: unknown } | undefined;
+    const requireConfirmation = toolPolicy?.requireConfirmation === true;
+    const confirmationRules = Array.isArray(toolPolicy?.confirmationRules) ? toolPolicy.confirmationRules : [];
 
     connectors.forEach((connector, connectorIndex) => {
       const connectorPath = `connectors[${connectorIndex}]`;
@@ -138,7 +181,7 @@ export class ProjectLoader {
       const connectorConfig = getObject(connector, 'config', `${connectorPath}.config`, issues);
 
       if (connectorType === 'api' && connectorConfig) {
-        this.validateApiConnectorConfig(connectorConfig, connectorPath, toolNames, requireConfirmation, issues);
+        this.validateApiConnectorConfig(connectorConfig, connectorPath, toolNames, requireConfirmation, confirmationRules, issues);
       }
     });
   }
@@ -148,6 +191,7 @@ export class ProjectLoader {
     connectorPath: string,
     toolNames: Set<string>,
     requireConfirmation: boolean,
+    confirmationRules: unknown[],
     issues: ValidationIssue[],
   ): void {
     requireString(config, 'baseUrl', `${connectorPath}.config.baseUrl`, issues);
@@ -192,10 +236,12 @@ export class ProjectLoader {
         issues.push({ path: `${toolPath}.method`, message: 'API tool method must be one of GET, POST, PUT, PATCH, DELETE' });
       }
 
-      if (API_METHODS.has(method) && !SAFE_API_METHODS.has(method) && !requireConfirmation) {
+      const toolRequiresConfirmation = name ? this.toolRequiresConfirmationByRule(name, confirmationRules) : undefined;
+      const hasConfirmationBoundary = requireConfirmation || toolRequiresConfirmation === true;
+      if (API_METHODS.has(method) && !SAFE_API_METHODS.has(method) && !hasConfirmationBoundary) {
         issues.push({
           path: `${toolPath}.method`,
-          message: `State-changing API tool ${name ?? '<unnamed>'} uses ${method}; set toolPolicy.requireConfirmation: true`,
+          message: `State-changing API tool ${name ?? '<unnamed>'} uses ${method}; set toolPolicy.requireConfirmation: true or add a matching toolPolicy.confirmationRules entry`,
         });
       }
 

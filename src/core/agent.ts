@@ -788,6 +788,19 @@ export abstract class BaseAgent {
     }
   }
 
+  protected getToolConfirmationRequirement(toolName: string): boolean {
+    const policy = this.config.project.toolPolicy;
+    let requirement = policy?.requireConfirmation ?? false;
+
+    for (const rule of policy?.confirmationRules ?? []) {
+      if (rule.tool === toolName) {
+        requirement = rule.requireConfirmation;
+      }
+    }
+
+    return requirement;
+  }
+
   protected async evaluateToolConfirmation(
     toolName: string,
     riskLevel: 'low' | 'medium' | 'high' = 'low',
@@ -796,7 +809,7 @@ export abstract class BaseAgent {
     approvedRequestId?: string
   ): Promise<ToolConfirmationRequest | null> {
     const policy = this.config.project.toolPolicy;
-    const requireConfirmation = policy?.requireConfirmation ?? false;
+    const requireConfirmation = this.getToolConfirmationRequirement(toolName);
     const allowedHighRiskTools = policy?.allowedTools ?? [];
 
     const needsConfirmation = requireConfirmation || riskLevel === 'high';

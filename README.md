@@ -184,7 +184,7 @@ Try this prompt in the console:
 analyze training data for USER-001
 ```
 
-The read tool `get_training_stats` is allowed without approval. The write tool `save_training_analysis` enters `waiting_confirmation` before the result is saved.
+The read tool `get_training_stats` runs without approval. The write tool `save_training_analysis` has a tool-specific confirmation rule and enters `waiting_confirmation` before the result is saved.
 
 See [`examples/training-analysis-agent/README.md`](./examples/training-analysis-agent/README.md).
 
@@ -267,14 +267,14 @@ connectors:
               required: true
 ```
 
-4. Define the safety boundary. A common pattern is to allow read tools and require approval for write tools.
+4. Define the safety boundary. A common pattern is to require approval only for write tools.
 
 ```yaml
 toolPolicy:
   maxConsecutiveCalls: 6
-  requireConfirmation: true
-  allowedTools:
-    - get_customer_profile
+  confirmationRules:
+    - tool: save_customer_analysis
+      requireConfirmation: true
 ```
 
 5. Start the server.
@@ -325,7 +325,9 @@ connectors:
 
 toolPolicy:
   maxConsecutiveCalls: 5
-  requireConfirmation: true
+  confirmationRules:
+    - tool: save_customer_analysis
+      requireConfirmation: true
 ```
 
 The project file tells agent-bridge:

@@ -102,14 +102,25 @@ execute_shell(command)
 
 ### Require confirmation for writes
 
-Recommended default:
+Recommended default for early internal testing:
 
 ```yaml
 toolPolicy:
   requireConfirmation: true
 ```
 
-For early internal testing, this is safer than trying to classify every operation perfectly.
+Once your tool list is clear, prefer tool-specific rules so read tools can run directly while write tools pause for approval:
+
+```yaml
+toolPolicy:
+  confirmationRules:
+    - tool: save_training_analysis
+      requireConfirmation: true
+    - tool: trigger_refund_workflow
+      requireConfirmation: true
+```
+
+This keeps the approval boundary explicit without slowing down safe read operations.
 
 ### Avoid direct production database writes
 

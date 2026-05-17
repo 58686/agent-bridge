@@ -64,8 +64,9 @@ function createTrainingProject(baseUrl: string): ProjectConfig {
     systemPrompt: 'Analyze training data against the configured standard and save the result.',
     toolPolicy: {
       maxConsecutiveCalls: 6,
-      requireConfirmation: true,
-      allowedTools: ['get_training_stats'],
+      confirmationRules: [
+        { tool: 'save_training_analysis', requireConfirmation: true },
+      ],
     },
     memory: {
       enabled: true,

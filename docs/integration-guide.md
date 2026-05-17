@@ -165,12 +165,16 @@ The built-in REST connector infers risk from HTTP method:
 - `POST`, `PUT`, `PATCH` -> medium
 - `DELETE` -> high
 
-You can also use project-level policy:
+You can use either a global confirmation policy or tool-specific rules. Tool-specific rules are recommended once you know which tools write data:
 
 ```yaml
 toolPolicy:
   maxConsecutiveCalls: 5
-  requireConfirmation: true
+  confirmationRules:
+    - tool: create_comment
+      requireConfirmation: true
+    - tool: change_status
+      requireConfirmation: true
 ```
 
 ## 5. Write the project file
@@ -202,7 +206,9 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 5
-  requireConfirmation: true
+  confirmationRules:
+    - tool: your_write_tool
+      requireConfirmation: true
 
 memory:
   enabled: true
@@ -226,7 +232,7 @@ Current startup validation checks:
 - API auth type: `none`, `bearer`, or `apiKey`
 - string arrays such as `queryParams` and `bodyParams`
 - parameter type and description
-- state-changing API tools (`POST`, `PUT`, `PATCH`, `DELETE`) require `toolPolicy.requireConfirmation: true`
+- state-changing API tools (`POST`, `PUT`, `PATCH`, `DELETE`) require either `toolPolicy.requireConfirmation: true` or a matching `toolPolicy.confirmationRules` entry
 
 This makes configuration mistakes visible before a company API is called.
 

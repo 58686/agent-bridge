@@ -203,6 +203,11 @@ export interface ProjectConfig {
     allowedTools?: string[];
     /** 禁止的工具黑名单 */
     forbiddenTools?: string[];
+    /** Tool-specific confirmation rules. Later rules override earlier rules. */
+    confirmationRules?: Array<{
+      tool: string;
+      requireConfirmation: boolean;
+    }>;
   };
   /** 记忆配置 */
   memory?: {

@@ -85,9 +85,9 @@ systemPrompt: |
 
 toolPolicy:
   maxConsecutiveCalls: 6
-  requireConfirmation: true
-  allowedTools:
-    - get_training_stats
+  confirmationRules:
+    - tool: save_training_analysis
+      requireConfirmation: true
 
 memory:
   enabled: true
