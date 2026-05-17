@@ -28,3 +28,10 @@ jobs:
 
       - name: Run tests
         run: npm run test:run
+
+      - name: Validate training example config
+        run: |
+          TRAINING_API_BASE_URL=http://127.0.0.1:4020 TRAINING_API_TOKEN=example-training-token node --input-type=module -e "import { ProjectLoader } from './dist/config/project-loader.js'; const project = ProjectLoader.load('examples/training-analysis-agent/project.yaml'); console.log(project.id);"
+
+      - name: Build Docker image
+        run: docker build -t agent-bridge:ci .

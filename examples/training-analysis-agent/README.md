@@ -45,12 +45,14 @@ Terminal 2: start agent-bridge with this project config.
 
 ```bash
 # macOS / Linux
+export TRAINING_API_BASE_URL=http://127.0.0.1:4020
 export TRAINING_API_TOKEN=example-training-token
 node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
 ```
 
 ```powershell
 # Windows PowerShell
+$env:TRAINING_API_BASE_URL='http://127.0.0.1:4020'
 $env:TRAINING_API_TOKEN='example-training-token'
 node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
 ```

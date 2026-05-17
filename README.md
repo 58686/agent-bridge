@@ -48,6 +48,48 @@ Current built-in capabilities:
 - startup project config validation
 - minimal web console at `/`
 
+## Architecture
+
+```mermaid
+flowchart LR
+  App[Company app / operator] --> AB[agent-bridge]
+  AB --> Model[AI model]
+  Model --> AB
+  AB --> Policy[Tool policy\nconfirmation / allow list]
+  Policy --> API[Company API / workflow system]
+  API --> DB[(Company database)]
+  AB --> Audit[(Audit trail)]
+  AB --> State[(Session state\nrecovery)]
+```
+
+agent-bridge keeps the company system as the source of truth. The model can reason and request tool calls, but writes still go through configured APIs, policy checks, approvals, and audit logs.
+
+## Docker quickstart
+
+Run the training-analysis demo with one command:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+```text
+http://127.0.0.1:3000/
+```
+
+The compose file starts:
+
+- `agent-bridge` on port `3000`
+- a mock company training API on port `4020`
+- persistent runtime data in the `agent_bridge_data` Docker volume
+
+Try this prompt:
+
+```text
+analyze training data for USER-001
+```
+
 ## Quickstart: run without any API key
 
 ```bash
@@ -131,6 +173,7 @@ This example matches a common enterprise workflow: fetch a user's training stati
 node examples/training-analysis-agent/mock-api.mjs
 
 # terminal 2: start agent-bridge with the training analysis project
+$env:TRAINING_API_BASE_URL='http://127.0.0.1:4020'
 $env:TRAINING_API_TOKEN='example-training-token'
 node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
 ```
@@ -167,6 +210,83 @@ node dist/server-main.js --project projects/example/openai-project.yaml --port 3
 ```
 
 A project config can also use an OpenAI-compatible gateway with `baseUrl`.
+
+## Connect your own REST API in 5 minutes
+
+1. Create a project file, for example `projects/my-company/project.yaml`.
+
+2. Choose a model. Use `mock-model` for a no-key smoke test, or `openai` for real model calls.
+
+```yaml
+model:
+  provider: custom
+  model: mock-model
+```
+
+3. Add your company API as a connector.
+
+```yaml
+connectors:
+  - id: company-api
+    type: api
+    name: Company API
+    config:
+      baseUrl: ${COMPANY_API_BASE_URL}
+      timeoutMs: 30000
+      auth:
+        type: bearer
+        token: ${COMPANY_API_TOKEN}
+      tools:
+        - name: get_customer_profile
+          description: Get customer profile by id.
+          method: GET
+          path: /customers/profile
+          queryParams: [customerId]
+          parameters:
+            customerId:
+              type: string
+              required: true
+
+        - name: save_customer_analysis
+          description: Save an AI-generated customer analysis result.
+          method: POST
+          path: /customers/analysis
+          bodyParams: [customerId, summary, riskLevel, recommendations]
+          parameters:
+            customerId:
+              type: string
+              required: true
+            summary:
+              type: string
+              required: true
+            riskLevel:
+              type: string
+              required: true
+            recommendations:
+              type: array
+              required: true
+```
+
+4. Define the safety boundary. A common pattern is to allow read tools and require approval for write tools.
+
+```yaml
+toolPolicy:
+  maxConsecutiveCalls: 6
+  requireConfirmation: true
+  allowedTools:
+    - get_customer_profile
+```
+
+5. Start the server.
+
+```bash
+npm run build
+COMPANY_API_BASE_URL=https://api.company.example \
+COMPANY_API_TOKEN=your-token \
+node dist/server-main.js --project projects/my-company/project.yaml --port 3000
+```
+
+Open `http://127.0.0.1:3000/`, create a session, and ask the agent to use the company tool. Read calls can run directly; write calls pause in `waiting_confirmation` until approved.
 
 ## Project configuration model
 

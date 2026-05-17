@@ -1,0 +1,41 @@
+services:
+  training-api:
+    image: node:20-slim
+    working_dir: /app
+    command: node examples/training-analysis-agent/mock-api.mjs
+    environment:
+      TRAINING_API_HOST: 0.0.0.0
+      TRAINING_API_PORT: 4020
+      TRAINING_API_TOKEN: example-training-token
+    volumes:
+      - ./:/app:ro
+    ports:
+      - "4020:4020"
+
+  agent-bridge:
+    build: .
+    depends_on:
+      - training-api
+    environment:
+      TRAINING_API_BASE_URL: http://training-api:4020
+      TRAINING_API_TOKEN: example-training-token
+    command:
+      - node
+      - dist/server-main.js
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --project
+      - examples/training-analysis-agent/project.yaml
+      - --db
+      - .agent-data/agent-bridge.sqlite
+      - --audit-log
+      - .agent-data/audit.log
+    volumes:
+      - agent_bridge_data:/app/.agent-data
+    ports:
+      - "3000:3000"
+
+volumes:
+  agent_bridge_data:

@@ -1,0 +1,12 @@
+node_modules
+dist
+.agent-data
+.git
+.github
+.env
+.env.*
+!.env.example
+coverage
+*.log
+*.sqlite
+*.sqlite-*

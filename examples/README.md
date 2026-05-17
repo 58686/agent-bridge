@@ -45,6 +45,7 @@ node dist/server-main.js --project examples/company-workflow-agent/project.yaml 
 
 ```bash
 node examples/training-analysis-agent/mock-api.mjs
+$env:TRAINING_API_BASE_URL='http://127.0.0.1:4020'
 $env:TRAINING_API_TOKEN='example-training-token'
 node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
 ```

@@ -11,7 +11,7 @@ connectors:
     type: api
     name: Company Training API
     config:
-      baseUrl: http://127.0.0.1:4020
+      baseUrl: ${TRAINING_API_BASE_URL}
       timeoutMs: 30000
       defaultHeaders:
         x-client-name: agent-bridge-training-example
