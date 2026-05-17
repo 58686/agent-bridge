@@ -2,6 +2,10 @@
 
 agent-bridge is a safe runtime for connecting AI agents to company tools, workflows, and APIs.
 
+- License: [MIT](./LICENSE)
+- Security policy: [SECURITY.md](./SECURITY.md)
+- Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md)
+
 It is not a chatbot template, and it is not a replacement for your existing workflow engine, database, CRM, ticketing system, or internal platform. It provides the runtime layer that lets an AI model use those systems through controlled tools.
 
 ## What this project does
@@ -117,6 +121,29 @@ node dist/server-main.js --project examples/company-workflow-agent/project.yaml 
 ```
 
 See [`examples/company-workflow-agent/README.md`](./examples/company-workflow-agent/README.md).
+
+## Run a training-data analysis example
+
+This example matches a common enterprise workflow: fetch a user's training statistics, ask AI to analyze the data against a configured standard, then save the structured result through a company API.
+
+```bash
+# terminal 1: start a mock company training API
+node examples/training-analysis-agent/mock-api.mjs
+
+# terminal 2: start agent-bridge with the training analysis project
+$env:TRAINING_API_TOKEN='example-training-token'
+node dist/server-main.js --project examples/training-analysis-agent/project.yaml --port 3000
+```
+
+Try this prompt in the console:
+
+```text
+analyze training data for USER-001
+```
+
+The read tool `get_training_stats` is allowed without approval. The write tool `save_training_analysis` enters `waiting_confirmation` before the result is saved.
+
+See [`examples/training-analysis-agent/README.md`](./examples/training-analysis-agent/README.md).
 
 ## Use a real model
 

@@ -1,0 +1,95 @@
+id: training-analysis-agent
+name: Training Analysis Agent
+description: A runnable example that fetches employee training statistics, asks AI to analyze them against a standard, and saves the result through a company API.
+
+model:
+  provider: custom
+  model: mock-model
+
+connectors:
+  - id: company-training-api
+    type: api
+    name: Company Training API
+    config:
+      baseUrl: http://127.0.0.1:4020
+      timeoutMs: 30000
+      defaultHeaders:
+        x-client-name: agent-bridge-training-example
+      auth:
+        type: bearer
+        token: ${TRAINING_API_TOKEN}
+      tools:
+        - name: get_training_stats
+          description: Get a user's training completion, exam, and overdue-course statistics.
+          method: GET
+          path: /training/stats
+          queryParams:
+            - userId
+          parameters:
+            userId:
+              type: string
+              description: User id, for example USER-001.
+              required: true
+
+        - name: save_training_analysis
+          description: Save the AI-generated training analysis result back to the company system.
+          method: POST
+          path: /training/analysis
+          bodyParams:
+            - userId
+            - standardId
+            - scoreLevel
+            - riskLevel
+            - summary
+            - recommendations
+            - evidence
+          parameters:
+            userId:
+              type: string
+              description: User id, for example USER-001.
+              required: true
+            standardId:
+              type: string
+              description: Analysis standard identifier.
+              required: true
+            scoreLevel:
+              type: string
+              description: Result level such as excellent, qualified, or needs_attention.
+              required: true
+            riskLevel:
+              type: string
+              description: Risk level such as low, medium, or high.
+              required: true
+            summary:
+              type: string
+              description: Human-readable analysis summary.
+              required: true
+            recommendations:
+              type: array
+              description: Suggested next actions.
+              required: true
+            evidence:
+              type: object
+              description: Key training metrics used by the analysis.
+              required: true
+
+systemPrompt: |
+  You are a training analytics assistant for an enterprise learning platform.
+  When asked to analyze a user's training status, first call get_training_stats.
+  Then compare the statistics against this standard:
+  - excellent: completionRate >= 0.90, averageScore >= 85, and overdueCourses = 0
+  - qualified: completionRate >= 0.75 and averageScore >= 70
+  - needs_attention: anything below qualified
+  Save the structured result by calling save_training_analysis.
+  Never invent training statistics. Use company API data as the source of truth.
+
+toolPolicy:
+  maxConsecutiveCalls: 6
+  requireConfirmation: true
+  allowedTools:
+    - get_training_stats
+
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding

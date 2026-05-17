@@ -761,8 +761,8 @@ describe('API server', () => {
       expect(response.headers.get('content-type')).toContain('text/html');
       const body = await response.text();
       expect(body).toContain('agent-bridge Demo Console');
-      expect(body).toContain('Developer console for sessions, tool calls, approvals, and audit trails');
-      expect(body).toContain('自动刷新 5s');
+      expect(body).toContain('Safe runtime for connecting AI agents to company APIs, workflows, and business systems.');
+      expect(body).toContain('Auto refresh every 5s');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

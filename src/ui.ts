@@ -1,6 +1,6 @@
 export function getMinimalUiHtml(): string {
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,34 +8,40 @@ export function getMinimalUiHtml(): string {
   <style>
     :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; background: #f5f7fb; color: #111827; }
-    header { padding: 18px 24px; background: linear-gradient(135deg, #111827, #1e3a8a); color: white; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-    header h1 { margin: 0; font-size: 18px; }
-    header input { width: 300px; max-width: 42vw; border: 1px solid rgba(255,255,255,.22); border-radius: 9px; padding: 8px 10px; background: rgba(15, 23, 42, .72); color: white; }
+    header { padding: 20px 24px; background: radial-gradient(circle at top left, #2563eb 0, #111827 40%, #020617 100%); color: white; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    header h1 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+    header input { width: 300px; max-width: 42vw; border: 1px solid rgba(255,255,255,.22); border-radius: 10px; padding: 9px 11px; background: rgba(15, 23, 42, .72); color: white; }
     header input::placeholder { color: #cbd5e1; }
-    main { display: grid; grid-template-columns: 310px minmax(380px, 1fr) 410px; gap: 16px; padding: 16px; }
-    section { background: white; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05); overflow: hidden; }
+    main { display: grid; grid-template-columns: 320px minmax(390px, 1fr) 430px; gap: 16px; padding: 16px; }
+    section { background: white; border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05); overflow: hidden; }
     section h2 { margin: 0; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #e5e7eb; background: #fafafa; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .body { padding: 14px 16px; }
-    button { border: 0; border-radius: 9px; background: #2563eb; color: white; padding: 8px 11px; font-weight: 600; cursor: pointer; }
+    button { border: 0; border-radius: 10px; background: #2563eb; color: white; padding: 8px 12px; font-weight: 700; cursor: pointer; }
     button.secondary { background: #4b5563; }
     button.danger { background: #dc2626; }
     button.ghost { background: #eef2ff; color: #1e3a8a; }
     button.success { background: #047857; }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     textarea, input, select { width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 10px; padding: 9px 10px; font: inherit; }
-    textarea { min-height: 96px; resize: vertical; }
+    textarea { min-height: 112px; resize: vertical; }
     pre { margin: 0; padding: 12px; background: #0f172a; color: #dbeafe; border-radius: 10px; overflow: auto; font-size: 12px; line-height: 1.45; max-height: 360px; }
     .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
     .row > * { flex: 1; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .toolbar > * { flex: none; }
     .stack { display: grid; gap: 10px; }
+    .hero { display: grid; gap: 6px; max-width: 760px; }
+    .tagline { color: #cbd5e1; font-size: 13px; line-height: 1.5; }
+    .header-actions { display: grid; gap: 8px; justify-items: end; }
+    .mini-flow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .mini-flow span { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); color: #e0f2fe; border-radius: 999px; padding: 4px 8px; font-size: 12px; }
     .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; background: #fff; }
     .card.clickable { cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
     .card.clickable:hover { border-color: #93c5fd; transform: translateY(-1px); }
     .card.active { border-color: #2563eb; background: #eff6ff; }
     .card.warn { border-color: #f59e0b; background: #fffbeb; }
     .card.error { border-color: #fca5a5; background: #fef2f2; color: #7f1d1d; }
+    .hint { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e3a8a; border-radius: 12px; padding: 10px; font-size: 12px; line-height: 1.5; }
     .muted { color: #6b7280; font-size: 12px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
     .pill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; background: #e5e7eb; color: #374151; font-size: 12px; margin: 2px 4px 2px 0; }
@@ -52,46 +58,48 @@ export function getMinimalUiHtml(): string {
     .error-panel.show { display: block; }
     label.inline { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: #dbeafe; }
     label.inline input { width: auto; }
-    @media (max-width: 1180px) { main { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } header input { max-width: 100%; width: 100%; } }
+    @media (max-width: 1180px) { main { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } header input { max-width: 100%; width: 100%; } .header-actions { justify-items: stretch; width: 100%; } .split { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <div>
+    <div class="hero">
       <h1>agent-bridge Demo Console</h1>
-      <div class="muted" style="color:#cbd5e1">Developer console for sessions, tool calls, approvals, and audit trails</div>
+      <div class="tagline">Safe runtime for connecting AI agents to company APIs, workflows, and business systems.</div>
+      <div class="mini-flow"><span>Company API</span><span>Tool policy</span><span>Human approval</span><span>Audit trail</span></div>
     </div>
-    <div class="toolbar">
-      <label class="inline"><input id="autoRefresh" type="checkbox" /> 自动刷新 5s</label>
-      <input id="token" placeholder="Bearer token，可留空" />
+    <div class="header-actions">
+      <label class="inline"><input id="autoRefresh" type="checkbox" /> Auto refresh every 5s</label>
+      <input id="token" placeholder="Bearer token, optional" />
     </div>
   </header>
   <main>
     <section>
-      <h2><span>Sessions</span><span id="sessionCount" class="pill">0</span></h2>
+      <h2><span>1. Sessions</span><span id="sessionCount" class="pill">0</span></h2>
       <div class="body stack">
+        <div class="hint">Create or select a session. A session keeps messages, tool calls, pending approvals, and recovery state.</div>
         <div class="toolbar">
-          <button data-action="create-session">新建 Session</button>
-          <button class="ghost" data-action="load-sessions">刷新</button>
+          <button data-action="create-session">New Session</button>
+          <button class="ghost" data-action="load-sessions">Refresh</button>
         </div>
-        <div id="project" class="muted">加载 project...</div>
+        <div id="project" class="muted">Loading project...</div>
         <div id="sessions" class="stack"></div>
       </div>
     </section>
 
     <section>
-      <h2><span>Run / Messages</span><span id="lastRefresh" class="muted">未刷新</span></h2>
+      <h2><span>2. Run agent</span><span id="lastRefresh" class="muted">Not refreshed</span></h2>
       <div class="body stack">
         <div class="status-box">
-          <div class="muted">当前 Session</div>
-          <div id="currentSession" class="mono">未选择</div>
-          <div id="summary" class="muted">暂无摘要</div>
+          <div class="muted">Current session</div>
+          <div id="currentSession" class="mono">None selected</div>
+          <div id="summary" class="muted">No summary yet</div>
         </div>
-        <textarea id="input" placeholder="输入要让 Agent 执行的任务，例如：请创建评论"></textarea>
+        <textarea id="input" placeholder="Ask the agent to use company tools. Example: analyze training data for USER-001"></textarea>
         <div class="toolbar">
           <button data-action="run-session">Run</button>
           <button class="secondary" data-action="resume-session">Resume</button>
-          <button class="ghost" data-action="refresh-current">刷新详情</button>
+          <button class="ghost" data-action="refresh-current">Refresh details</button>
         </div>
         <div id="status" class="muted"></div>
         <pre id="messages">[]</pre>
@@ -99,17 +107,18 @@ export function getMinimalUiHtml(): string {
     </section>
 
     <section>
-      <h2><span>Approval / Debug</span><span id="pendingCount" class="pill">0 pending</span></h2>
+      <h2><span>3. Approval & audit</span><span id="pendingCount" class="pill">0 pending</span></h2>
       <div class="body stack">
+        <div class="hint">Risky or write tools can pause here for a human decision before the company API is called.</div>
         <div id="pending" class="stack"></div>
         <div id="error" class="card error error-panel"></div>
         <div class="split">
           <div>
-            <div class="muted">Tool Executions</div>
+            <div class="muted">Tool executions</div>
             <pre id="tools">[]</pre>
           </div>
           <div>
-            <div class="muted">Audit Events</div>
+            <div class="muted">Audit events</div>
             <pre id="audit">[]</pre>
           </div>
         </div>
@@ -194,7 +203,7 @@ export function getMinimalUiHtml(): string {
       const retryable = Boolean(error.retryable);
       target.classList.add('show');
       target.innerHTML =
-        '<strong>错误</strong> ' + pill(error.code || 'ERROR') + pill(retryable ? 'retryable' : 'not_retryable') +
+        '<strong>Error</strong> ' + pill(error.code || 'ERROR') + pill(retryable ? 'retryable' : 'not_retryable') +
         '<div class="kv" style="margin-top:8px">' +
           '<div class="k">message</div><div>' + escapeHtml(error.message || error) + '</div>' +
           '<div class="k">requestId</div><div class="mono">' + escapeHtml(error.requestId || '-') + '</div>' +
@@ -209,7 +218,7 @@ export function getMinimalUiHtml(): string {
     function setCurrent(sessionId) {
       state.sessionId = sessionId || '';
       if (state.sessionId) localStorage.setItem('agentBridge.sessionId', state.sessionId);
-      $('currentSession').textContent = state.sessionId || '未选择';
+      $('currentSession').textContent = state.sessionId || 'None selected';
     }
 
     function setLastRefresh() {
@@ -232,9 +241,13 @@ export function getMinimalUiHtml(): string {
     async function loadProject() {
       try {
         const data = await api('/project');
-        $('project').innerHTML = escapeHtml(data.project.name) + '<br /><span class="mono">' + escapeHtml(data.project.id) + '</span>';
+        const tools = data.project.connectors ? data.project.connectors.flatMap((connector) => connector.tools || []) : [];
+        $('project').innerHTML =
+          '<strong>' + escapeHtml(data.project.name) + '</strong><br />' +
+          '<span class="mono">' + escapeHtml(data.project.id) + '</span><br />' +
+          '<span class="muted">tools: ' + escapeHtml(tools.length) + '</span>';
       } catch (error) {
-        $('project').innerHTML = 'Project 需要 viewer token；如未开启鉴权可忽略。';
+        $('project').innerHTML = 'Project requires a viewer token. If auth is disabled, you can ignore this message.';
       }
     }
 
@@ -254,7 +267,7 @@ export function getMinimalUiHtml(): string {
           pill(status) + (queue ? pill(queue) : '') +
           '<div class="muted">pending=' + escapeHtml(pending) + ' · failed=' + escapeHtml(failed) + '</div>' +
         '</div>';
-      }).join('') || '<div class="empty">暂无 session</div>';
+      }).join('') || '<div class="empty">No sessions yet</div>';
     }
 
     async function createSession() {
@@ -276,7 +289,7 @@ export function getMinimalUiHtml(): string {
     }
 
     async function runSession() {
-      if (!state.sessionId) return setError({ message: '请先创建或选择 session', retryable: false });
+      if (!state.sessionId) return setError({ message: 'Create or select a session first.', retryable: false });
       await guarded(async () => {
         const input = $('input').value.trim();
         const data = await api('/sessions/' + encodeURIComponent(state.sessionId) + '/run', { method: 'POST', body: JSON.stringify({ input }) });
@@ -286,7 +299,7 @@ export function getMinimalUiHtml(): string {
     }
 
     async function resumeSession() {
-      if (!state.sessionId) return setError({ message: '请先创建或选择 session', retryable: false });
+      if (!state.sessionId) return setError({ message: 'Create or select a session first.', retryable: false });
       await guarded(async () => {
         const data = await api('/sessions/' + encodeURIComponent(state.sessionId) + '/resume', { method: 'POST' });
         setStatus('resume: ' + data.status, data.status);
@@ -310,7 +323,7 @@ export function getMinimalUiHtml(): string {
           ' grants ' + pill(summary.activeGrantCount || 0) +
           ' failed ' + pill(summary.failedToolExecutionCount || 0);
       } catch (error) {
-        $('summary').textContent = '摘要加载失败';
+        $('summary').textContent = 'Summary failed to load';
       }
     }
 
@@ -324,7 +337,7 @@ export function getMinimalUiHtml(): string {
       const items = normalizeRecords(data, 'pendingConfirmations');
       $('pendingCount').textContent = items.length + ' pending';
       $('pending').innerHTML = items.map((item) => '<div class="card warn">' +
-        '<strong>待审批：' + escapeHtml(item.tool) + '</strong> ' + pill(item.riskLevel || 'risk') +
+        '<strong>Pending approval: ' + escapeHtml(item.tool) + '</strong> ' + pill(item.riskLevel || 'risk') +
         '<div class="kv" style="margin:8px 0">' +
           '<div class="k">id</div><div class="mono">' + escapeHtml(item.id) + '</div>' +
           '<div class="k">callId</div><div class="mono">' + escapeHtml(item.callId || '-') + '</div>' +
@@ -333,12 +346,12 @@ export function getMinimalUiHtml(): string {
         '</div>' +
         renderJson(item.args || item) +
         '<div class="toolbar" style="margin-top:10px"><button class="success" data-action="approve" data-id="' + escapeAttr(item.id) + '">Approve</button><button class="danger" data-action="reject" data-id="' + escapeAttr(item.id) + '">Reject</button></div>' +
-      '</div>').join('') || '<div class="empty">无待审批项</div>';
+      '</div>').join('') || '<div class="empty">No pending approvals</div>';
     }
 
     async function approve(id) {
       await guarded(async () => {
-        const data = await api('/confirmations/' + encodeURIComponent(id) + '/approve', { method: 'POST', body: JSON.stringify({ reason: 'approved from minimal ui' }) });
+        const data = await api('/confirmations/' + encodeURIComponent(id) + '/approve', { method: 'POST', body: JSON.stringify({ reason: 'approved from demo console' }) });
         setStatus('approve: ' + data.status, data.status);
         await refreshCurrent();
       });
@@ -346,7 +359,7 @@ export function getMinimalUiHtml(): string {
 
     async function rejectConfirm(id) {
       await guarded(async () => {
-        await api('/confirmations/' + encodeURIComponent(id) + '/reject', { method: 'POST', body: JSON.stringify({ reason: 'rejected from minimal ui' }) });
+        await api('/confirmations/' + encodeURIComponent(id) + '/reject', { method: 'POST', body: JSON.stringify({ reason: 'rejected from demo console' }) });
         setStatus('rejected', 'rejected');
         await refreshCurrent();
       });
