@@ -36,6 +36,13 @@ export class MockModel implements ChatModel {
         };
       }
 
+      if (lastMessage.name === 'save_training_analysis') {
+        return {
+          content: this.formatTrainingSaveResult(lastMessage.content),
+          finishReason: 'stop',
+        };
+      }
+
       return {
         content: `工具执行结果：${lastMessage.content}`,
         finishReason: 'stop',
@@ -144,6 +151,45 @@ export class MockModel implements ChatModel {
     } catch {
       return {};
     }
+  }
+
+  private formatTrainingSaveResult(content: string): string {
+    const data = this.extractToolData(content) as {
+      ok?: boolean;
+      record?: {
+        analysisId?: string;
+        userId?: string;
+        scoreLevel?: string;
+        riskLevel?: string;
+        summary?: string;
+        recommendations?: string[];
+        savedAt?: string;
+      };
+    };
+
+    if (!data.ok || !data.record) {
+      return `培训分析保存接口已返回，但结果需要人工检查：${content}`;
+    }
+
+    const record = data.record;
+    const recommendations = Array.isArray(record.recommendations) && record.recommendations.length > 0
+      ? record.recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n')
+      : '无额外建议';
+
+    return [
+      '培训分析已保存成功。',
+      '',
+      `分析ID：${record.analysisId ?? '-'}`,
+      `用户：${record.userId ?? '-'}`,
+      `等级：${record.scoreLevel ?? '-'}`,
+      `风险：${record.riskLevel ?? '-'}`,
+      `结论：${record.summary ?? '-'}`,
+      '',
+      '建议：',
+      recommendations,
+      '',
+      `保存时间：${record.savedAt ?? '-'}`,
+    ].join('\n');
   }
 
   private buildTrainingAnalysis(stats: Record<string, unknown>): Record<string, unknown> {
