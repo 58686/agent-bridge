@@ -47,7 +47,7 @@ Current built-in capabilities:
 - structured audit logs
 - configurable sensitive-field redaction for API responses, exports, and audit logs
 - startup project config validation
-- minimal web console at `/`
+- minimal web console at `/` with project config visualization
 
 ## Architecture
 
@@ -513,7 +513,7 @@ npm run test:run
 Current full regression target:
 
 ```text
-12 test files / 117 tests
+12 test files / 118 tests
 ```
 
 ## Roadmap

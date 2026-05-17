@@ -763,6 +763,8 @@ describe('API server', () => {
       expect(body).toContain('agent-bridge Demo Console');
       expect(body).toContain('Safe runtime for connecting AI agents to company APIs, workflows, and business systems.');
       expect(body).toContain('Auto refresh every 5s');
+      expect(body).toContain('Project config check');
+      expect(body).toContain('Security redaction');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
@@ -828,7 +830,19 @@ describe('API server', () => {
             type: string;
             name: string;
             config?: unknown;
+            toolCount: number;
+            tools: Array<{ name: string; method?: string; path?: string }>;
           }>;
+          analysis?: {
+            levelsCount: number;
+          };
+          security?: {
+            redaction?: {
+              enabled: boolean;
+              extraSensitiveKeys: string[];
+              replacement: string;
+            };
+          };
           toolPolicy?: {
             requireConfirmation?: boolean;
           };
@@ -843,7 +857,56 @@ describe('API server', () => {
       expect(payload.project.model.envApiKey).toBeUndefined();
       expect(payload.project.connectors).toHaveLength(2);
       expect(payload.project.connectors[0].config).toBeUndefined();
+      expect(payload.project.connectors[1].toolCount).toBe(1);
+      expect(payload.project.connectors[1].tools[0]).toMatchObject({ name: 'create_comment', method: 'POST', path: '/tickets/comment' });
+      expect(payload.project.analysis).toBeUndefined();
+      expect(payload.project.security).toBeUndefined();
       expect(payload.project.toolPolicy?.requireConfirmation).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('returns analysis and security summaries for project config visualization', async () => {
+    const project = {
+      ...createConfirmationProject(),
+      analysis: {
+        standardId: 'annual-compliance-2026',
+        levels: [
+          { level: 'excellent', riskLevel: 'low' as const, when: { completionRate: { gte: 0.9 } } },
+        ],
+        fallback: { level: 'needs_attention', riskLevel: 'high' as const },
+      },
+      security: {
+        redaction: {
+          extraSensitiveKeys: ['employeeIdCard', 'mobile_phone'],
+          replacement: '[MASKED]',
+        },
+      },
+    };
+    const { server, baseUrl } = await startTestServer({ project });
+
+    try {
+      const projectResponse = await fetch(`${baseUrl}/project`);
+      expect(projectResponse.status).toBe(200);
+      const payload = await projectResponse.json() as {
+        project: {
+          analysis?: { standardId?: string; levelsCount: number; fallbackLevel?: string; fallbackRiskLevel?: string };
+          security?: { redaction?: { enabled: boolean; extraSensitiveKeys: string[]; replacement: string } };
+        };
+      };
+
+      expect(payload.project.analysis).toEqual({
+        standardId: 'annual-compliance-2026',
+        levelsCount: 1,
+        fallbackLevel: 'needs_attention',
+        fallbackRiskLevel: 'high',
+      });
+      expect(payload.project.security?.redaction).toEqual({
+        enabled: true,
+        extraSensitiveKeys: ['employeeIdCard', 'mobile_phone'],
+        replacement: '[MASKED]',
+      });
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

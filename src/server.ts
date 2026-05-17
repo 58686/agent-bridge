@@ -43,7 +43,27 @@ export interface ApiProjectSummary {
     name: string;
     enabledTools?: string[];
     disabledTools?: string[];
+    toolCount: number;
+    tools: Array<{
+      name: string;
+      method?: string;
+      path?: string;
+      timeoutMs?: number;
+    }>;
   }>;
+  analysis?: {
+    standardId?: string;
+    levelsCount: number;
+    fallbackLevel?: string;
+    fallbackRiskLevel?: string;
+  };
+  security?: {
+    redaction?: {
+      enabled: boolean;
+      extraSensitiveKeys: string[];
+      replacement: string;
+    };
+  };
   toolPolicy?: ProjectConfig['toolPolicy'];
   memory?: ProjectConfig['memory'];
 }
@@ -800,16 +820,50 @@ function buildProjectSummary(project: ProjectConfig): ApiProjectSummary {
       temperature: project.model.temperature,
       maxTokens: project.model.maxTokens,
     },
-    connectors: project.connectors.map((connector) => ({
-      id: connector.id,
-      type: connector.type,
-      name: connector.name,
-      enabledTools: connector.enabledTools,
-      disabledTools: connector.disabledTools,
-    })),
+    connectors: project.connectors.map((connector) => {
+      const tools = summarizeConfiguredTools(connector.config.tools);
+      return {
+        id: connector.id,
+        type: connector.type,
+        name: connector.name,
+        enabledTools: connector.enabledTools,
+        disabledTools: connector.disabledTools,
+        toolCount: tools.length,
+        tools,
+      };
+    }),
+    analysis: project.analysis ? {
+      standardId: project.analysis.standardId,
+      levelsCount: project.analysis.levels?.length ?? 0,
+      fallbackLevel: project.analysis.fallback?.level,
+      fallbackRiskLevel: project.analysis.fallback?.riskLevel,
+    } : undefined,
+    security: project.security ? {
+      redaction: project.security.redaction ? {
+        enabled: true,
+        extraSensitiveKeys: project.security.redaction.extraSensitiveKeys ?? [],
+        replacement: project.security.redaction.replacement ?? '[REDACTED]',
+      } : undefined,
+    } : undefined,
     toolPolicy: project.toolPolicy,
     memory: project.memory,
   };
+}
+
+function summarizeConfiguredTools(input: unknown): ApiProjectSummary['connectors'][number]['tools'] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .filter((tool): tool is Record<string, unknown> => tool !== null && typeof tool === 'object')
+    .map((tool) => ({
+      name: String(tool.name ?? ''),
+      method: typeof tool.method === 'string' ? tool.method : undefined,
+      path: typeof tool.path === 'string' ? tool.path : undefined,
+      timeoutMs: typeof tool.timeoutMs === 'number' ? tool.timeoutMs : undefined,
+    }))
+    .filter((tool) => tool.name.trim() !== '');
 }
 
 function parsePositiveIntegerParam(value: string | null, fallback: number): number {

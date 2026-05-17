@@ -59,6 +59,10 @@ export function getMinimalUiHtml(): string {
     .metric { border: 1px solid #e5e7eb; border-radius: 10px; padding: 7px; background: #fff; }
     .metric .label { color: #6b7280; font-size: 11px; }
     .metric .value { font-weight: 800; font-size: 14px; }
+    .config-grid { display: grid; gap: 8px; }
+    .config-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .tool-list { display: grid; gap: 4px; margin-top: 6px; }
+    .tool-item { display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; font-size: 12px; }
     .empty { padding: 12px; border: 1px dashed #d1d5db; border-radius: 12px; color: #6b7280; text-align: center; }
     .error-panel { display: none; }
     .error-panel.show { display: block; }
@@ -286,6 +290,67 @@ export function getMinimalUiHtml(): string {
       return '<div class="metric"><div class="label">' + escapeHtml(label) + '</div><div class="value">' + escapeHtml(value == null ? '-' : value) + '</div></div>';
     }
 
+    function renderProjectSummary(project) {
+      const connectors = Array.isArray(project.connectors) ? project.connectors : [];
+      const totalTools = connectors.reduce((sum, connector) => sum + Number(connector.toolCount || 0), 0);
+      const redaction = project.security && project.security.redaction ? project.security.redaction : null;
+      const analysis = project.analysis || null;
+      return '<div class="config-grid">' +
+        '<div class="config-title"><strong>' + escapeHtml(project.name || 'Project config') + '</strong>' + pill(project.id || 'project') + '</div>' +
+        '<div class="muted">Project config check: model, tools, approval, analysis, and redaction.</div>' +
+        '<div class="card">' +
+          '<strong>Model</strong>' +
+          '<div class="kv" style="margin-top:8px">' +
+            '<div class="k">provider</div><div>' + escapeHtml(project.model && project.model.provider || '-') + '</div>' +
+            '<div class="k">model</div><div class="mono">' + escapeHtml(project.model && project.model.model || '-') + '</div>' +
+            '<div class="k">temperature</div><div>' + escapeHtml(project.model && project.model.temperature != null ? project.model.temperature : '-') + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<strong>Connectors</strong> ' + pill(totalTools + ' tools') +
+          renderConnectors(connectors) +
+        '</div>' +
+        '<div class="card">' +
+          '<strong>Analysis rules</strong>' +
+          '<div style="margin-top:6px">' + (analysis ? pill((analysis.levelsCount || 0) + ' levels') + pill(analysis.fallbackRiskLevel || 'fallback') : pill('not configured')) + '</div>' +
+          '<div class="muted mono">standard: ' + escapeHtml(analysis && analysis.standardId || '-') + '</div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<strong>Security redaction</strong>' +
+          '<div style="margin-top:6px">' + (redaction && redaction.enabled ? pill('enabled') : pill('built-in only')) + pill(redaction && redaction.replacement || '[REDACTED]') + '</div>' +
+          '<div class="muted">extra keys: ' + escapeHtml(redaction && redaction.extraSensitiveKeys && redaction.extraSensitiveKeys.length ? redaction.extraSensitiveKeys.join(', ') : 'none') + '</div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<strong>Tool policy</strong>' +
+          '<div style="margin-top:6px">' + renderPolicyPills(project.toolPolicy || {}) + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderConnectors(connectors) {
+      if (!connectors.length) return '<div class="empty" style="margin-top:8px">No connectors configured</div>';
+      return '<div class="tool-list">' + connectors.map((connector) => {
+        const tools = Array.isArray(connector.tools) ? connector.tools : [];
+        return '<div class="status-box">' +
+          '<div><strong>' + escapeHtml(connector.name || connector.id) + '</strong> ' + pill(connector.type || 'connector') + pill((connector.toolCount || 0) + ' tools') + '</div>' +
+          (tools.length ? '<div class="tool-list">' + tools.map(renderToolItem).join('') + '</div>' : '<div class="muted">No configured tool summary</div>') +
+        '</div>';
+      }).join('') + '</div>';
+    }
+
+    function renderToolItem(tool) {
+      return '<div class="tool-item"><span>' + pill(tool.method || 'tool') + '</span><span><strong class="mono">' + escapeHtml(tool.name || '-') + '</strong> <span class="muted">' + escapeHtml(tool.path || '') + '</span></span></div>';
+    }
+
+    function renderPolicyPills(policy) {
+      const parts = [];
+      parts.push(pill(policy.requireConfirmation ? 'all tools confirm' : 'rule-based'));
+      parts.push(pill('timeout ' + (policy.confirmationTimeoutMs || 900000) + 'ms'));
+      if (Array.isArray(policy.confirmationRules)) parts.push(pill(policy.confirmationRules.length + ' rules'));
+      if (policy.maxConsecutiveCalls) parts.push(pill('max calls ' + policy.maxConsecutiveCalls));
+      return parts.join('');
+    }
+
     async function guarded(fn) {
       if (state.busy) return;
       state.busy = true;
@@ -302,11 +367,7 @@ export function getMinimalUiHtml(): string {
     async function loadProject() {
       try {
         const data = await api('/project');
-        const tools = data.project.connectors ? data.project.connectors.flatMap((connector) => connector.tools || []) : [];
-        $('project').innerHTML =
-          '<strong>' + escapeHtml(data.project.name) + '</strong><br />' +
-          '<span class="mono">' + escapeHtml(data.project.id) + '</span><br />' +
-          '<span class="muted">tools: ' + escapeHtml(tools.length) + '</span>';
+        $('project').innerHTML = renderProjectSummary(data.project || {});
       } catch (error) {
         $('project').innerHTML = 'Project requires a viewer token. If auth is disabled, you can ignore this message.';
       }
