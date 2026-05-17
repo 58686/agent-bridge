@@ -209,6 +209,16 @@ export interface ProjectConfig {
   systemPrompt?: string;
   /** Optional analysis rules injected into the model context. */
   analysis?: AnalysisConfig;
+  /** Security-related project configuration. */
+  security?: {
+    /** Redaction rules applied before API responses, exports, and audit logs leave the runtime. */
+    redaction?: {
+      /** Extra field names to redact in addition to built-in sensitive keys. */
+      extraSensitiveKeys?: string[];
+      /** Replacement text for redacted values. Defaults to [REDACTED]. */
+      replacement?: string;
+    };
+  };
   /** Tool execution policy. */
   toolPolicy?: {
     /** Maximum consecutive model/tool loop iterations. */

@@ -45,6 +45,7 @@ Current built-in capabilities:
 - session / confirmation / resume HTTP APIs
 - SQLite persistence
 - structured audit logs
+- configurable sensitive-field redaction for API responses, exports, and audit logs
 - startup project config validation
 - minimal web console at `/`
 
@@ -399,6 +400,20 @@ Tool parameters support strict schemas, including `enum`, nested object `propert
 
 `toolPolicy.confirmationTimeoutMs` controls how long a pending human approval stays valid. It is measured in milliseconds and defaults to `900000` when omitted.
 
+Use `security.redaction` when your company has domain-specific sensitive fields that are not covered by the built-in token/password/secret rules:
+
+```yaml
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+      - nationalId
+    replacement: '[REDACTED]'
+```
+
+These rules are applied before API responses, exports, and audit logs leave the runtime.
+
 The project file tells agent-bridge:
 
 - which model to use, including OpenAI-compatible `baseUrl` and `timeoutMs`
@@ -498,7 +513,7 @@ npm run test:run
 Current full regression target:
 
 ```text
-7 test files / 100 tests
+12 test files / 117 tests
 ```
 
 ## Roadmap

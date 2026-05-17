@@ -80,6 +80,54 @@ connectors: []
     expect(project.analysis?.levels?.[0]).toMatchObject({ level: 'excellent', riskLevel: 'low' });
   });
 
+  it('loads project-specific security redaction settings', () => {
+    const projectPath = writeTempProject(`
+id: security-project
+name: Security Project
+model:
+  provider: mock
+  model: mock-model
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+    replacement: '[MASKED]'
+connectors: []
+`);
+
+    const project = ProjectLoader.load(projectPath, { env: {} });
+
+    expect(project.security?.redaction).toEqual({
+      extraSensitiveKeys: ['employeeIdCard', 'mobile_phone'],
+      replacement: '[MASKED]',
+    });
+  });
+
+  it('rejects invalid security redaction settings at startup', () => {
+    const issues = expectInvalidProject(`
+id: invalid-security-project
+name: Invalid Security Project
+model:
+  provider: mock
+  model: mock-model
+security:
+  redaction:
+    extraSensitiveKeys:
+      - ''
+      - 123
+    replacement: ''
+connectors: []
+`);
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'security.redaction.extraSensitiveKeys' }),
+        expect.objectContaining({ path: 'security.redaction.replacement' }),
+      ]),
+    );
+  });
+
   it('rejects invalid model and analysis settings at startup', () => {
     const issues = expectInvalidProject(`
 id: invalid-model-project

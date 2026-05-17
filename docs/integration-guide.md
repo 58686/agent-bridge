@@ -108,7 +108,7 @@ Rules:
 - restrict tables and fields
 - set row limits
 - set query timeouts; use connector-level `timeoutMs` and override per tool when a specific endpoint needs a tighter limit
-- redact sensitive fields
+- redact sensitive fields; add company-specific fields under `security.redaction.extraSensitiveKeys`
 - audit every query
 
 ### Pattern D: Custom connector
@@ -218,6 +218,14 @@ systemPrompt: |
   Do not invent records.
   Ask for confirmation before state-changing operations.
 
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+      - nationalId
+    replacement: '[REDACTED]'
+
 toolPolicy:
   maxConsecutiveCalls: 5
   confirmationTimeoutMs: 900000
@@ -249,6 +257,7 @@ Current startup validation checks:
 - API auth type: `none`, `bearer`, or `apiKey`
 - string arrays such as `queryParams` and `bodyParams`
 - parameter type, description, required flag, enum values, array items, and object properties
+- `security.redaction.extraSensitiveKeys` and `security.redaction.replacement`
 - `toolPolicy.confirmationTimeoutMs` must be a positive integer when provided
 - state-changing API tools (`POST`, `PUT`, `PATCH`, `DELETE`) require either `toolPolicy.requireConfirmation: true` or a matching `toolPolicy.confirmationRules` entry
 

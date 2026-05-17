@@ -92,6 +92,11 @@ export class ProjectLoader {
       this.validateAnalysisConfig(analysis, issues);
     }
 
+    const security = getOptionalObject(project, 'security', 'security', issues);
+    if (security) {
+      this.validateSecurityConfig(security, issues);
+    }
+
     const connectors = getArray(project, 'connectors', 'connectors', issues);
     if (connectors) {
       this.validateConnectors(connectors, project, issues);
@@ -118,6 +123,16 @@ export class ProjectLoader {
     if (issues.length > 0) {
       this.throwInvalid(filePath, issues);
     }
+  }
+
+  private static validateSecurityConfig(security: Record<string, unknown>, issues: ValidationIssue[]): void {
+    const redaction = getOptionalObject(security, 'redaction', 'security.redaction', issues);
+    if (!redaction) {
+      return;
+    }
+
+    validateStringArray(redaction, 'extraSensitiveKeys', 'security.redaction.extraSensitiveKeys', issues);
+    validateOptionalString(redaction, 'replacement', 'security.redaction.replacement', issues);
   }
 
   private static validateModelConfig(model: Record<string, unknown>, issues: ValidationIssue[]): void {

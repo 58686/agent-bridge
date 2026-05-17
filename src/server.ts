@@ -25,7 +25,7 @@ import {
 } from './api-security.js';
 import { AppError, NotFoundError } from './errors.js';
 import { getMinimalUiHtml } from './ui.js';
-import { redactSensitiveValue } from './redaction.js';
+import { configureRedaction, redactSensitiveValue } from './redaction.js';
 
 export interface ApiProjectSummary {
   id: string;
@@ -1012,6 +1012,7 @@ async function requireSessionOwnerAccess(
 export function createApiServer(options: ApiServerOptions = {}): http.Server {
   const projectPath = options.projectPath ?? getDefaultProjectPath();
   const project = options.project ?? ProjectLoader.load(projectPath);
+  configureRedaction(project.security?.redaction);
   const debug = options.debug ?? false;
   const auditSink = options.auditSink ?? new CompositeApiAuditSink([
     new ConsoleApiAuditSink(),

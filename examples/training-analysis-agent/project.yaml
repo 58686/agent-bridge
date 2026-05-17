@@ -142,6 +142,14 @@ systemPrompt: |
   Save the structured result by calling save_training_analysis.
   Never invent training statistics. Use company API data as the source of truth.
 
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+      - nationalId
+    replacement: '[REDACTED]'
+
 toolPolicy:
   maxConsecutiveCalls: 6
   confirmationTimeoutMs: 900000

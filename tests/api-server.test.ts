@@ -3147,6 +3147,74 @@ describe('API server', () => {
     }
   });
 
+  it('applies project-specific redaction keys to tool execution query responses', async () => {
+    const project = {
+      ...createConfirmationProject(),
+      security: {
+        redaction: {
+          extraSensitiveKeys: ['employeeIdCard', 'mobile_phone'],
+          replacement: '[MASKED]',
+        },
+      },
+    } as ReturnType<typeof createConfirmationProject>;
+    const { server, baseUrl, toolExecutions, sessions } = await startTestServer({
+      project,
+      auth: {
+        enabled: true,
+        tokens: [
+          { token: 'viewer-token', actorId: 'viewer-1', role: 'viewer' },
+        ],
+      },
+      auditSink: new ConsoleApiAuditSink(),
+      auditEvents: new FakeAuditEventRepository(),
+    });
+
+    try {
+      await sessions.create({
+        id: 'project-redaction-session-1',
+        projectId: 'confirmation-demo-project',
+        actorId: 'viewer-1',
+        status: 'completed',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-01T00:03:00.000Z',
+      });
+      await toolExecutions.create({
+        id: 'project-redaction-exec-1',
+        sessionId: 'project-redaction-session-1',
+        tool: 'create_comment',
+        callId: 'call-project-redaction-1',
+        args: {
+          employeeIdCard: 'raw-id-card',
+          mobile_phone: 'raw-mobile-phone',
+          userId: 'USER-001',
+        },
+        status: 'finished',
+        startedAt: '2025-01-01T00:02:00.000Z',
+        finishedAt: '2025-01-01T00:02:01.000Z',
+        durationMs: 1000,
+        result: {
+          success: true,
+          data: {
+            mobilePhone: 'raw-result-mobile',
+          },
+        },
+      });
+
+      const response = await fetch(`${baseUrl}/tool-executions?tool=create_comment&limit=10&offset=0`, {
+        headers: { authorization: 'Bearer viewer-token' },
+      });
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain('[MASKED]');
+      expect(body).toContain('USER-001');
+      expect(body).not.toContain('raw-id-card');
+      expect(body).not.toContain('raw-mobile-phone');
+      expect(body).not.toContain('raw-result-mobile');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('不会在 confirmation 查询响应中泄漏敏感 args', async () => {
     const { server, baseUrl, confirmations, sessions } = await startTestServer({
       auth: {
