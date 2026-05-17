@@ -1,0 +1,64 @@
+id: company-ticket-agent
+name: Company Ticket Agent
+description: A runnable example that connects agent-bridge to a mock company ticket API.
+
+model:
+  provider: custom
+  model: mock-model
+
+connectors:
+  - id: company-ticket-api
+    type: api
+    name: Company Ticket API
+    config:
+      baseUrl: http://127.0.0.1:4010
+      timeoutMs: 30000
+      defaultHeaders:
+        x-client-name: agent-bridge-example
+      auth:
+        type: bearer
+        token: ${TICKET_API_TOKEN}
+      tools:
+        - name: get_ticket
+          description: Get ticket details by ticket id.
+          method: GET
+          path: /tickets/detail
+          queryParams:
+            - ticketId
+          parameters:
+            ticketId:
+              type: string
+              description: Ticket id, for example TICKET-001.
+              required: true
+
+        - name: create_comment
+          description: Add an internal comment to a ticket.
+          method: POST
+          path: /tickets/comment
+          bodyParams:
+            - ticketId
+            - content
+          parameters:
+            ticketId:
+              type: string
+              description: Ticket id, for example TICKET-001.
+              required: true
+            content:
+              type: string
+              description: Comment body.
+              required: true
+
+systemPrompt: |
+  You are an internal ticket support agent.
+  Use tools when the user asks about real ticket data or asks to update a ticket.
+  Do not invent ticket data.
+  Adding comments is a write operation and must be confirmed before execution.
+
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: true
+
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding

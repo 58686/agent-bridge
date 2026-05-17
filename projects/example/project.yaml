@@ -1,0 +1,23 @@
+id: example-project
+name: Example Project
+description: 一个用于演示如何接入公司项目的 Agent 配置
+model:
+  provider: custom
+  model: mock-model
+connectors:
+  - id: echo-demo
+    type: echo
+    name: Echo Demo Connector
+    config:
+      projectName: demo
+systemPrompt: |
+  你是一个通用项目 Agent。
+  你可以通过连接器访问不同公司的项目能力。
+  在回答前，优先考虑是否需要调用工具来获取更准确的信息。
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: false
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding

@@ -1,0 +1,58 @@
+id: customer-openai-api-project
+name: Customer OpenAI API Project
+description: 面向客户接入的最小 OpenAI + API Connector 示例配置
+model:
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  temperature: 0.2
+  maxTokens: 800
+connectors:
+  - id: company-api
+    type: api
+    name: Company API Connector
+    config:
+      baseUrl: https://example.internal.api/
+      defaultHeaders:
+        x-client-name: agent-bridge
+      auth:
+        type: bearer
+        token: YOUR_API_TOKEN
+      tools:
+        - name: get_ticket
+          description: 根据工单 ID 查询工单详情
+          method: GET
+          path: /tickets/detail
+          queryParams:
+            - ticketId
+          parameters:
+            ticketId:
+              type: string
+              description: 工单 ID
+              required: true
+        - name: create_comment
+          description: 为工单新增评论
+          method: POST
+          path: /tickets/comment
+          bodyParams:
+            - ticketId
+            - content
+          parameters:
+            ticketId:
+              type: string
+              description: 工单 ID
+              required: true
+            content:
+              type: string
+              description: 评论内容
+              required: true
+systemPrompt: |
+  你是一个企业内部系统 Agent。
+  当需要查询或更新业务数据时，优先调用 API 工具，而不是凭空回答。
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: true
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding

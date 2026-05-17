@@ -1,0 +1,26 @@
+id: openai-example-project
+name: OpenAI Example Project
+description: 使用 OpenAI 模型驱动的通用 Agent 示例配置
+model:
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  temperature: 0.2
+  maxTokens: 800
+connectors:
+  - id: echo-demo
+    type: echo
+    name: Echo Demo Connector
+    config:
+      projectName: demo
+systemPrompt: |
+  你是一个通用项目 Agent。
+  你可以通过连接器访问不同公司的项目能力。
+  当工具能提供更准确信息时，优先调用工具。
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: false
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding

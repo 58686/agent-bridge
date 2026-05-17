@@ -1,0 +1,40 @@
+id: confirmation-demo-project
+name: Confirmation Demo Project
+description: 用于验证高风险工具确认闭环的本地演示配置
+model:
+  provider: custom
+  model: mock-model
+connectors:
+  - id: echo-demo
+    type: echo
+    name: Echo Demo Connector
+    config:
+      projectName: demo
+  - id: company-api
+    type: api
+    name: Company API Connector
+    config:
+      baseUrl: https://example.internal.api/
+      tools:
+        - name: create_comment
+          description: 为工单新增评论
+          method: POST
+          path: /tickets/comment
+          bodyParams:
+            - ticketId
+            - content
+          parameters:
+            ticketId:
+              type: string
+              description: 工单 ID
+              required: true
+            content:
+              type: string
+              description: 评论内容
+              required: true
+systemPrompt: |
+  你是一个企业内部系统 Agent。
+  当需要新增评论时，优先调用 create_comment 工具。
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: true

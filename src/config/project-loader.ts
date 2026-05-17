@@ -1,0 +1,288 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import YAML from 'yaml';
+import { ProjectConfig } from '../core/types.js';
+import { ConfigurationError } from '../errors.js';
+
+const ENV_PLACEHOLDER_PATTERN = /\$\{([A-Z0-9_]+)\}/gi;
+const API_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const SAFE_API_METHODS = new Set(['GET']);
+
+type JsonLike = string | number | boolean | null | JsonLike[] | { [key: string]: JsonLike };
+
+interface ValidationIssue {
+  path: string;
+  message: string;
+}
+
+export interface ProjectLoadOptions {
+  env?: NodeJS.ProcessEnv;
+}
+
+export class ProjectLoader {
+  static load(filePath: string, options: ProjectLoadOptions = {}): ProjectConfig {
+    const absolutePath = path.resolve(filePath);
+    const content = fs.readFileSync(absolutePath, 'utf-8');
+    const ext = path.extname(absolutePath).toLowerCase();
+
+    if (ext === '.yaml' || ext === '.yml') {
+      const project = this.resolveEnvPlaceholders(YAML.parse(content), options.env ?? process.env, absolutePath) as unknown as ProjectConfig;
+      this.validateProject(project, absolutePath);
+      return project;
+    }
+
+    if (ext === '.json') {
+      const project = this.resolveEnvPlaceholders(JSON.parse(content), options.env ?? process.env, absolutePath) as unknown as ProjectConfig;
+      this.validateProject(project, absolutePath);
+      return project;
+    }
+
+    throw new ConfigurationError(`Unsupported config file: ${absolutePath}`, 'PROJECT_CONFIG_UNSUPPORTED_FILE', {
+      filePath: absolutePath,
+      extension: ext,
+    });
+  }
+
+  private static resolveEnvPlaceholders(value: JsonLike, env: NodeJS.ProcessEnv, filePath: string): JsonLike {
+    if (typeof value === 'string') {
+      return value.replace(ENV_PLACEHOLDER_PATTERN, (match, name: string) => {
+        const envValue = env[name];
+        if (envValue === undefined) {
+          throw new ConfigurationError(
+            `Environment variable ${name} referenced in project config is not set`,
+            'PROJECT_CONFIG_ENV_VAR_MISSING',
+            { filePath, envVar: name, placeholder: match },
+          );
+        }
+
+        return envValue;
+      });
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.resolveEnvPlaceholders(item, env, filePath));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nested]) => [key, this.resolveEnvPlaceholders(nested, env, filePath)]),
+      );
+    }
+
+    return value;
+  }
+
+  private static validateProject(project: unknown, filePath: string): void {
+    const issues: ValidationIssue[] = [];
+
+    if (!isPlainObject(project)) {
+      this.throwInvalid(filePath, [{ path: '$', message: 'Project config must be an object' }]);
+    }
+
+    requireString(project, 'id', 'id', issues);
+    requireString(project, 'name', 'name', issues);
+
+    const model = getObject(project, 'model', 'model', issues);
+    if (model) {
+      requireString(model, 'provider', 'model.provider', issues);
+      requireString(model, 'model', 'model.model', issues);
+    }
+
+    const connectors = getArray(project, 'connectors', 'connectors', issues);
+    if (connectors) {
+      this.validateConnectors(connectors, project, issues);
+    }
+
+    const toolPolicy = getOptionalObject(project, 'toolPolicy', 'toolPolicy', issues);
+    if (toolPolicy) {
+      const maxConsecutiveCalls = toolPolicy.maxConsecutiveCalls;
+      if (
+        maxConsecutiveCalls !== undefined
+        && (typeof maxConsecutiveCalls !== 'number' || !Number.isInteger(maxConsecutiveCalls) || maxConsecutiveCalls <= 0)
+      ) {
+        issues.push({ path: 'toolPolicy.maxConsecutiveCalls', message: 'toolPolicy.maxConsecutiveCalls must be a positive integer' });
+      }
+      const requireConfirmation = toolPolicy.requireConfirmation;
+      if (requireConfirmation !== undefined && typeof requireConfirmation !== 'boolean') {
+        issues.push({ path: 'toolPolicy.requireConfirmation', message: 'toolPolicy.requireConfirmation must be boolean' });
+      }
+    }
+
+    if (issues.length > 0) {
+      this.throwInvalid(filePath, issues);
+    }
+  }
+
+  private static validateConnectors(connectors: unknown[], project: Record<string, unknown>, issues: ValidationIssue[]): void {
+    const connectorIds = new Set<string>();
+    const toolNames = new Set<string>();
+    const requireConfirmation = (project.toolPolicy as { requireConfirmation?: unknown } | undefined)?.requireConfirmation === true;
+
+    connectors.forEach((connector, connectorIndex) => {
+      const connectorPath = `connectors[${connectorIndex}]`;
+      if (!isPlainObject(connector)) {
+        issues.push({ path: connectorPath, message: 'Connector must be an object' });
+        return;
+      }
+
+      const connectorId = requireString(connector, 'id', `${connectorPath}.id`, issues);
+      if (connectorId) {
+        if (connectorIds.has(connectorId)) {
+          issues.push({ path: `${connectorPath}.id`, message: `Duplicate connector id: ${connectorId}` });
+        }
+        connectorIds.add(connectorId);
+      }
+
+      const connectorType = requireString(connector, 'type', `${connectorPath}.type`, issues);
+      requireString(connector, 'name', `${connectorPath}.name`, issues);
+      const connectorConfig = getObject(connector, 'config', `${connectorPath}.config`, issues);
+
+      if (connectorType === 'api' && connectorConfig) {
+        this.validateApiConnectorConfig(connectorConfig, connectorPath, toolNames, requireConfirmation, issues);
+      }
+    });
+  }
+
+  private static validateApiConnectorConfig(
+    config: Record<string, unknown>,
+    connectorPath: string,
+    toolNames: Set<string>,
+    requireConfirmation: boolean,
+    issues: ValidationIssue[],
+  ): void {
+    requireString(config, 'baseUrl', `${connectorPath}.config.baseUrl`, issues);
+    validatePositiveInteger(config, 'timeoutMs', `${connectorPath}.config.timeoutMs`, issues);
+
+    const auth = getOptionalObject(config, 'auth', `${connectorPath}.config.auth`, issues);
+    if (auth?.type !== undefined && !['none', 'bearer', 'apiKey'].includes(String(auth.type))) {
+      issues.push({ path: `${connectorPath}.config.auth.type`, message: 'auth.type must be one of none, bearer, apiKey' });
+    }
+
+    const tools = getArray(config, 'tools', `${connectorPath}.config.tools`, issues);
+    if (!tools) {
+      return;
+    }
+
+    if (tools.length === 0) {
+      issues.push({ path: `${connectorPath}.config.tools`, message: 'API connector requires at least one tool' });
+      return;
+    }
+
+    tools.forEach((tool, toolIndex) => {
+      const toolPath = `${connectorPath}.config.tools[${toolIndex}]`;
+      if (!isPlainObject(tool)) {
+        issues.push({ path: toolPath, message: 'API tool must be an object' });
+        return;
+      }
+
+      const name = requireString(tool, 'name', `${toolPath}.name`, issues);
+      requireString(tool, 'description', `${toolPath}.description`, issues);
+      requireString(tool, 'path', `${toolPath}.path`, issues);
+
+      if (name) {
+        if (toolNames.has(name)) {
+          issues.push({ path: `${toolPath}.name`, message: `Duplicate tool name: ${name}` });
+        }
+        toolNames.add(name);
+      }
+
+      const methodRaw = tool.method;
+      const method = methodRaw === undefined ? 'GET' : String(methodRaw).toUpperCase();
+      if (!API_METHODS.has(method)) {
+        issues.push({ path: `${toolPath}.method`, message: 'API tool method must be one of GET, POST, PUT, PATCH, DELETE' });
+      }
+
+      if (API_METHODS.has(method) && !SAFE_API_METHODS.has(method) && !requireConfirmation) {
+        issues.push({
+          path: `${toolPath}.method`,
+          message: `State-changing API tool ${name ?? '<unnamed>'} uses ${method}; set toolPolicy.requireConfirmation: true`,
+        });
+      }
+
+      validateStringArray(tool, 'queryParams', `${toolPath}.queryParams`, issues);
+      validateStringArray(tool, 'bodyParams', `${toolPath}.bodyParams`, issues);
+      validatePositiveInteger(tool, 'timeoutMs', `${toolPath}.timeoutMs`, issues);
+
+      const parameters = getOptionalObject(tool, 'parameters', `${toolPath}.parameters`, issues);
+      if (parameters) {
+        for (const [paramName, parameter] of Object.entries(parameters)) {
+          if (!isPlainObject(parameter)) {
+            issues.push({ path: `${toolPath}.parameters.${paramName}`, message: 'Tool parameter must be an object' });
+            continue;
+          }
+          if (!['string', 'number', 'boolean', 'object', 'array'].includes(String(parameter.type))) {
+            issues.push({ path: `${toolPath}.parameters.${paramName}.type`, message: 'Tool parameter type is invalid' });
+          }
+          requireString(parameter, 'description', `${toolPath}.parameters.${paramName}.description`, issues);
+        }
+      }
+    });
+  }
+
+  private static throwInvalid(filePath: string, issues: ValidationIssue[]): never {
+    throw new ConfigurationError('Invalid project config', 'PROJECT_CONFIG_INVALID', { filePath, issues });
+  }
+}
+
+function requireString(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): string | undefined {
+  const value = input[key];
+  if (typeof value !== 'string' || value.trim() === '') {
+    issues.push({ path, message: `${path} must be a non-empty string` });
+    return undefined;
+  }
+  return value;
+}
+
+function getArray(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): unknown[] | undefined {
+  const value = input[key];
+  if (!Array.isArray(value)) {
+    issues.push({ path, message: `${path} must be an array` });
+    return undefined;
+  }
+  return value;
+}
+
+function getObject(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): Record<string, unknown> | undefined {
+  const value = input[key];
+  if (!isPlainObject(value)) {
+    issues.push({ path, message: `${path} must be an object` });
+    return undefined;
+  }
+  return value;
+}
+
+function getOptionalObject(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): Record<string, unknown> | undefined {
+  const value = input[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    issues.push({ path, message: `${path} must be an object` });
+    return undefined;
+  }
+  return value;
+}
+
+function validateStringArray(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): void {
+  const value = input[key];
+  if (value === undefined) {
+    return;
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || item.trim() === '')) {
+    issues.push({ path, message: `${path} must be an array of non-empty strings` });
+  }
+}
+
+function validatePositiveInteger(input: Record<string, unknown>, key: string, path: string, issues: ValidationIssue[]): void {
+  const value = input[key];
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    issues.push({ path, message: `${path} must be a positive integer` });
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

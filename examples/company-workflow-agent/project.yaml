@@ -1,0 +1,63 @@
+id: company-workflow-agent
+name: Company Workflow Agent
+description: A runnable example that connects agent-bridge to a mock company workflow system.
+
+model:
+  provider: custom
+  model: mock-model
+
+connectors:
+  - id: company-workflow-api
+    type: api
+    name: Company Workflow API
+    config:
+      baseUrl: http://127.0.0.1:4020
+      timeoutMs: 30000
+      defaultHeaders:
+        x-client-name: agent-bridge-workflow-example
+      auth:
+        type: bearer
+        token: ${WORKFLOW_API_TOKEN}
+      tools:
+        - name: get_workflow_status
+          description: Get workflow status by workflow id.
+          method: GET
+          path: /workflow/status
+          queryParams:
+            - workflowId
+          parameters:
+            workflowId:
+              type: string
+              description: Workflow id, for example WF-001.
+              required: true
+
+        - name: create_comment
+          description: Start a refund workflow. The tool name is create_comment only so the built-in mock model can trigger it during the demo; in a real project name this start_refund_workflow.
+          method: POST
+          path: /workflow/refund/start
+          bodyParams:
+            - ticketId
+            - content
+          parameters:
+            ticketId:
+              type: string
+              description: Demo ticket/order id. The mock model sends TICKET-001.
+              required: true
+            content:
+              type: string
+              description: Demo refund reason or workflow note.
+              required: true
+
+systemPrompt: |
+  You are an internal workflow assistant.
+  You may prepare and start workflow requests, but the company workflow system remains the source of truth for business approval.
+  Starting a workflow is a write operation and must be confirmed before execution.
+
+toolPolicy:
+  maxConsecutiveCalls: 5
+  requireConfirmation: true
+
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding
