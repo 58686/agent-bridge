@@ -37,6 +37,34 @@ export interface ProjectTemplateResponse {
   environment: string[];
 }
 
+export interface ProjectTemplateWizardRequest {
+  scenario?: string;
+  projectId?: string;
+  projectName?: string;
+  description?: string;
+  connectorId?: string;
+  connectorName?: string;
+  apiBaseUrlEnv?: string;
+  apiTokenEnv?: string;
+  userIdParam?: string;
+  standardId?: string;
+  readTool?: {
+    name?: string;
+    description?: string;
+    method?: string;
+    path?: string;
+    queryParams?: string[];
+  };
+  writeTool?: {
+    name?: string;
+    description?: string;
+    method?: string;
+    path?: string;
+    bodyParams?: string[];
+    requireConfirmation?: boolean;
+  };
+}
+
 export interface ApiProjectSummary {
   id: string;
   name: string;
@@ -834,6 +862,270 @@ function isRetryableError(statusCode: number, code: string): boolean {
   return statusCode === 408 || statusCode === 429 || statusCode >= 500;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalString(input: Record<string, unknown>, key: string, defaultValue: string): string {
+  const value = input[key];
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  if (typeof value !== 'string') {
+    throw new ApiHttpError(400, `Project template field must be a string: ${key}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value.trim() || defaultValue;
+}
+
+function optionalStringArray(input: Record<string, unknown>, key: string, defaultValue: string[]): string[] {
+  const value = input[key];
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
+    throw new ApiHttpError(400, `Project template field must be a string array: ${key}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value.map((item) => item.trim());
+}
+
+function optionalBoolean(input: Record<string, unknown>, key: string, defaultValue: boolean): boolean {
+  const value = input[key];
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  if (typeof value !== 'boolean') {
+    throw new ApiHttpError(400, `Project template field must be a boolean: ${key}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value;
+}
+
+function validateTemplateIdentifier(value: string, fieldName: string): string {
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(value)) {
+    throw new ApiHttpError(400, `Invalid project template identifier: ${fieldName}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value;
+}
+
+function validateTemplateEnvName(value: string, fieldName: string): string {
+  if (!/^[A-Z_][A-Z0-9_]{0,79}$/.test(value)) {
+    throw new ApiHttpError(400, `Invalid project template environment variable: ${fieldName}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value;
+}
+
+function validateTemplatePath(value: string, fieldName: string): string {
+  if (!value.startsWith('/') || value.includes('\n') || value.includes('\r')) {
+    throw new ApiHttpError(400, `Invalid project template API path: ${fieldName}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return value;
+}
+
+function validateTemplateMethod(value: string, fieldName: string): string {
+  const normalized = value.trim().toUpperCase();
+  if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(normalized)) {
+    throw new ApiHttpError(400, `Invalid project template HTTP method: ${fieldName}`, 'PROJECT_TEMPLATE_INVALID');
+  }
+  return normalized;
+}
+
+function yamlQuote(value: string): string {
+  return JSON.stringify(value);
+}
+
+function yamlInlineList(values: string[]): string {
+  return '[' + values.map((value) => yamlQuote(value)).join(', ') + ']';
+}
+
+function envPlaceholder(name: string): string {
+  return '${' + name + '}';
+}
+
+function readTemplateTool(input: unknown, defaults: {
+  name: string;
+  description: string;
+  method: string;
+  path: string;
+  queryParams?: string[];
+  bodyParams?: string[];
+  requireConfirmation?: boolean;
+}) {
+  const source = isPlainObject(input) ? input : {};
+  const name = validateTemplateIdentifier(optionalString(source, 'name', defaults.name), 'tool.name');
+  const description = optionalString(source, 'description', defaults.description);
+  const method = validateTemplateMethod(optionalString(source, 'method', defaults.method), 'tool.method');
+  const path = validateTemplatePath(optionalString(source, 'path', defaults.path), 'tool.path');
+  const queryParams = optionalStringArray(source, 'queryParams', defaults.queryParams ?? []);
+  const bodyParams = optionalStringArray(source, 'bodyParams', defaults.bodyParams ?? []);
+  const requireConfirmation = optionalBoolean(source, 'requireConfirmation', defaults.requireConfirmation ?? false);
+  queryParams.forEach((param) => validateTemplateIdentifier(param, 'tool.queryParams'));
+  bodyParams.forEach((param) => validateTemplateIdentifier(param, 'tool.bodyParams'));
+  return { name, description, method, path, queryParams, bodyParams, requireConfirmation };
+}
+
+function buildProjectTemplateFromWizard(input: unknown): ProjectTemplateResponse {
+  if (!isPlainObject(input)) {
+    throw new ApiHttpError(400, 'Project template wizard body must be an object', 'PROJECT_TEMPLATE_INVALID');
+  }
+
+  const scenario = optionalString(input, 'scenario', 'training-analysis').toLowerCase();
+  if (scenario !== 'training-analysis' && scenario !== 'default') {
+    throw new ApiHttpError(400, `Unsupported project template scenario: ${scenario}`, 'PROJECT_TEMPLATE_SCENARIO_UNSUPPORTED');
+  }
+
+  const projectId = validateTemplateIdentifier(optionalString(input, 'projectId', 'training-analysis-agent'), 'projectId');
+  const projectName = optionalString(input, 'projectName', 'Training Analysis Agent');
+  const description = optionalString(input, 'description', 'Fetch data from a company API, analyze it, and save approved results.');
+  const connectorId = validateTemplateIdentifier(optionalString(input, 'connectorId', 'company-api'), 'connectorId');
+  const connectorName = optionalString(input, 'connectorName', 'Company API');
+  const apiBaseUrlEnv = validateTemplateEnvName(optionalString(input, 'apiBaseUrlEnv', 'COMPANY_API_BASE_URL'), 'apiBaseUrlEnv');
+  const apiTokenEnv = validateTemplateEnvName(optionalString(input, 'apiTokenEnv', 'COMPANY_API_TOKEN'), 'apiTokenEnv');
+  const userIdParam = validateTemplateIdentifier(optionalString(input, 'userIdParam', 'userId'), 'userIdParam');
+  const standardId = optionalString(input, 'standardId', 'company-standard-2026');
+
+  const readTool = readTemplateTool(input.readTool, {
+    name: 'get_training_stats',
+    description: 'Fetch source business data for one user from the company system.',
+    method: 'GET',
+    path: '/training/stats',
+    queryParams: [userIdParam],
+  });
+  const writeTool = readTemplateTool(input.writeTool, {
+    name: 'save_training_analysis',
+    description: 'Save the AI-generated structured analysis result back to the company system.',
+    method: 'POST',
+    path: '/training/analysis',
+    bodyParams: [userIdParam, 'standardId', 'scoreLevel', 'riskLevel', 'summary', 'recommendations', 'evidence'],
+    requireConfirmation: true,
+  });
+
+  const confirmationRules = writeTool.requireConfirmation ? `
+  confirmationRules:
+    - tool: ${writeTool.name}
+      requireConfirmation: true` : '';
+
+  return {
+    scenario: 'training-analysis',
+    name: projectName,
+    description,
+    fileName: `${projectId}-project.yaml`,
+    contentType: 'application/x-yaml',
+    environment: ['OPENAI_API_KEY', apiBaseUrlEnv, apiTokenEnv],
+    yaml: `id: ${projectId}
+name: ${yamlQuote(projectName)}
+description: ${yamlQuote(description)}
+
+model:
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
+  temperature: 0.2
+  maxTokens: 1000
+
+connectors:
+  - id: ${connectorId}
+    type: api
+    name: ${yamlQuote(connectorName)}
+    config:
+      baseUrl: ${envPlaceholder(apiBaseUrlEnv)}
+      timeoutMs: 30000
+      auth:
+        type: bearer
+        token: ${envPlaceholder(apiTokenEnv)}
+      tools:
+        - name: ${readTool.name}
+          description: ${yamlQuote(readTool.description)}
+          method: ${readTool.method}
+          path: ${readTool.path}
+          queryParams: ${yamlInlineList(readTool.queryParams)}
+          parameters:
+            ${userIdParam}:
+              type: string
+              description: User or entity id to analyze.
+              required: true
+
+        - name: ${writeTool.name}
+          description: ${yamlQuote(writeTool.description)}
+          method: ${writeTool.method}
+          path: ${writeTool.path}
+          bodyParams: ${yamlInlineList(writeTool.bodyParams)}
+          parameters:
+            ${userIdParam}:
+              type: string
+              description: User or entity id to analyze.
+              required: true
+            standardId:
+              type: string
+              description: Analysis standard identifier.
+              required: true
+            scoreLevel:
+              type: string
+              description: Result level.
+              enum: [excellent, qualified, needs_attention]
+              required: true
+            riskLevel:
+              type: string
+              description: Risk level.
+              enum: [low, medium, high]
+              required: true
+            summary:
+              type: string
+              description: Human-readable analysis summary.
+              required: true
+            recommendations:
+              type: array
+              description: Suggested next actions.
+              required: true
+              items:
+                type: string
+            evidence:
+              type: object
+              description: Key metrics used by the analysis.
+              required: true
+
+analysis:
+  standardId: ${yamlQuote(standardId)}
+  levels:
+    - level: excellent
+      riskLevel: low
+      when:
+        completionRate:
+          gte: 0.9
+      recommendations:
+        - Keep the current cadence and consider assigning advanced work.
+  fallback:
+    level: needs_attention
+    riskLevel: high
+    recommendations:
+      - Create a remediation plan and schedule manager follow-up.
+
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+      - nationalId
+    replacement: '[REDACTED]'
+
+systemPrompt: |
+  You are an enterprise analysis assistant.
+  First call ${readTool.name}, then compare the returned data against the Analysis configuration JSON.
+  Save the structured result by calling ${writeTool.name}.
+  Never invent source data. Use company API data as the source of truth.
+
+toolPolicy:
+  maxConsecutiveCalls: 6
+  confirmationTimeoutMs: 900000${confirmationRules}
+
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding
+`,
+  };
+}
+
 function buildProjectTemplate(scenario: string | null): ProjectTemplateResponse {
   const normalizedScenario = (scenario || 'training-analysis').trim().toLowerCase();
   if (normalizedScenario !== 'training-analysis' && normalizedScenario !== 'default') {
@@ -1393,6 +1685,25 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
           actor,
           action: 'project_template',
           metadata: { scenario: template.scenario, format: format || 'json' },
+        }, 200, 'success');
+        return;
+      }
+
+      if (request.method === 'POST' && pathname === '/project/template') {
+        requireRole(actor, options.auth, 'viewer');
+        const body = await readJsonBody(request);
+        const template = buildProjectTemplateFromWizard(body);
+        const format = url.searchParams.get('format')?.toLowerCase();
+        if (format === 'yaml' || format === 'yml') {
+          sendText(response, 200, template.yaml, template.contentType, requestId, template.fileName);
+        } else {
+          sendJsonRaw(response, 200, { template }, requestId);
+        }
+        emitAudit(auditSink, request, {
+          requestId,
+          actor,
+          action: 'project_template_generate',
+          metadata: { scenario: template.scenario, format: format || 'json', fileName: template.fileName },
         }, 200, 'success');
         return;
       }

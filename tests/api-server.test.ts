@@ -919,6 +919,70 @@ describe('API server', () => {
     }
   });
 
+  it('generates customized project templates from wizard input', async () => {
+    const { server, baseUrl } = await startTestServer();
+
+    try {
+      const response = await fetch(`${baseUrl}/project/template`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectId: 'employee-training-agent',
+          projectName: 'Employee Training Agent',
+          description: 'Analyze employee training data and save the result.',
+          connectorId: 'hr-training-api',
+          connectorName: 'HR Training API',
+          apiBaseUrlEnv: 'HR_API_BASE_URL',
+          apiTokenEnv: 'HR_API_TOKEN',
+          userIdParam: 'employeeId',
+          standardId: 'hr-compliance-2026',
+          readTool: {
+            name: 'fetch_employee_training',
+            path: '/api/training/summary',
+            queryParams: ['employeeId'],
+          },
+          writeTool: {
+            name: 'save_employee_training_review',
+            path: '/api/training/review',
+            bodyParams: ['employeeId', 'standardId', 'scoreLevel', 'riskLevel', 'summary', 'recommendations', 'evidence'],
+            requireConfirmation: true,
+          },
+        }),
+      });
+      expect(response.status).toBe(200);
+      const payload = await response.json() as { template: { fileName: string; environment: string[]; yaml: string } };
+      expect(payload.template.fileName).toBe('employee-training-agent-project.yaml');
+      expect(payload.template.environment).toEqual(['OPENAI_API_KEY', 'HR_API_BASE_URL', 'HR_API_TOKEN']);
+      expect(payload.template.yaml).toContain('id: employee-training-agent');
+      expect(payload.template.yaml).toContain('baseUrl: ${HR_API_BASE_URL}');
+      expect(payload.template.yaml).toContain('token: ${HR_API_TOKEN}');
+      expect(payload.template.yaml).toContain('name: fetch_employee_training');
+      expect(payload.template.yaml).toContain('path: /api/training/summary');
+      expect(payload.template.yaml).toContain('queryParams: ["employeeId"]');
+      expect(payload.template.yaml).toContain('tool: save_employee_training_review');
+      expect(payload.template.yaml).not.toContain('example-training-token');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('rejects invalid project template wizard input', async () => {
+    const { server, baseUrl } = await startTestServer();
+
+    try {
+      const response = await fetch(`${baseUrl}/project/template`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiTokenEnv: 'not-valid-token-env' }),
+      });
+      expect(response.status).toBe(400);
+      const payload = await response.json() as { error: { code: string } };
+      expect(payload.error.code).toBe('PROJECT_TEMPLATE_INVALID');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
   it('rejects unsupported project template scenarios', async () => {
     const { server, baseUrl } = await startTestServer();
 

@@ -238,6 +238,30 @@ curl http://127.0.0.1:3000/project/template?scenario=training-analysis
 curl "http://127.0.0.1:3000/project/template?scenario=training-analysis&format=yaml" -o training-analysis-project.yaml
 ```
 
+For a company-specific starter file, post your API names, paths, and environment variable names. Do not send real tokens:
+
+```bash
+curl -X POST http://127.0.0.1:3000/project/template \
+  -H "content-type: application/json" \
+  -d '{
+    "projectId": "employee-training-agent",
+    "projectName": "Employee Training Agent",
+    "apiBaseUrlEnv": "HR_API_BASE_URL",
+    "apiTokenEnv": "HR_API_TOKEN",
+    "userIdParam": "employeeId",
+    "readTool": {
+      "name": "fetch_employee_training",
+      "path": "/api/training/summary",
+      "queryParams": ["employeeId"]
+    },
+    "writeTool": {
+      "name": "save_employee_training_review",
+      "path": "/api/training/review",
+      "requireConfirmation": true
+    }
+  }'
+```
+
 ## Connect your own REST API in 5 minutes
 
 1. Create a project file, for example `projects/my-company/project.yaml`.
@@ -520,7 +544,7 @@ npm run test:run
 Current full regression target:
 
 ```text
-12 test files / 120 tests
+12 test files / 122 tests
 ```
 
 ## Roadmap
