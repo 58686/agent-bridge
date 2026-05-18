@@ -231,7 +231,7 @@ model:
   timeoutMs: 60000
 ```
 
-You can also fetch a ready-to-edit training-analysis project template from the running server, or open the demo console and use **Project template -> View YAML / Download YAML**:
+You can also fetch a ready-to-edit training-analysis project template from the running server, or open the demo console and use **Project template -> Generate YAML** to fill a UI wizard:
 
 ```bash
 curl http://127.0.0.1:3000/project/template?scenario=training-analysis

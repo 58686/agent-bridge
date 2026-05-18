@@ -332,14 +332,31 @@ export function getMinimalUiHtml(): string {
         '</div>' +
         '<div class="card">' +
           '<strong>Project template</strong>' +
-          '<div class="muted" style="margin-top:6px">Generate a ready-to-edit training-analysis project.yaml for company API integration.</div>' +
-          '<div class="toolbar" style="margin-top:10px">' +
-            '<button class="ghost" data-action="view-template">View YAML</button>' +
-            '<button class="secondary" data-action="download-template">Download YAML</button>' +
+          '<div class="muted" style="margin-top:6px">Generate a ready-to-edit project.yaml for company API integration.</div>' +
+          '<div class="split" style="margin-top:10px">' +
+            templateInput('templateProjectId', 'Project ID', 'employee-training-agent') +
+            templateInput('templateProjectName', 'Project name', 'Employee Training Agent') +
+            templateInput('templateBaseEnv', 'Base URL env', 'HR_API_BASE_URL') +
+            templateInput('templateTokenEnv', 'Token env', 'HR_API_TOKEN') +
+            templateInput('templateUserParam', 'User param', 'employeeId') +
+            templateInput('templateReadTool', 'Read tool', 'fetch_employee_training') +
+            templateInput('templateReadPath', 'Read path', '/api/training/summary') +
+            templateInput('templateWriteTool', 'Write tool', 'save_employee_training_review') +
+            templateInput('templateWritePath', 'Write path', '/api/training/review') +
+            '<label class="muted"><input id="templateRequireConfirmation" type="checkbox" checked style="width:auto;margin-right:6px" />Require confirmation for write tool</label>' +
           '</div>' +
-          '<pre id="templatePreview" style="margin-top:10px; max-height:220px">Click View YAML to load the template.</pre>' +
+          '<div class="toolbar" style="margin-top:10px">' +
+            '<button data-action="generate-template">Generate YAML</button>' +
+            '<button class="ghost" data-action="view-template">View default YAML</button>' +
+            '<button class="secondary" data-action="download-template">Download default YAML</button>' +
+          '</div>' +
+          '<pre id="templatePreview" style="margin-top:10px; max-height:260px">Fill the wizard and click Generate YAML, or view the default template.</pre>' +
         '</div>' +
       '</div>';
+    }
+
+    function templateInput(id, label, value) {
+      return '<label class="muted">' + escapeHtml(label) + '<input id="' + escapeAttr(id) + '" value="' + escapeAttr(value) + '" /></label>';
     }
 
     function renderProjectChecks(checks) {
@@ -396,6 +413,41 @@ export function getMinimalUiHtml(): string {
       } catch (error) {
         $('project').innerHTML = 'Project requires a viewer token. If auth is disabled, you can ignore this message.';
       }
+    }
+
+    function templateField(id, fallback) {
+      const element = $(id);
+      return element && element.value.trim() ? element.value.trim() : fallback;
+    }
+
+    async function generateProjectTemplate() {
+      await guarded(async () => {
+        const userParam = templateField('templateUserParam', 'employeeId');
+        const data = await api('/project/template', {
+          method: 'POST',
+          body: JSON.stringify({
+            projectId: templateField('templateProjectId', 'employee-training-agent'),
+            projectName: templateField('templateProjectName', 'Employee Training Agent'),
+            apiBaseUrlEnv: templateField('templateBaseEnv', 'HR_API_BASE_URL'),
+            apiTokenEnv: templateField('templateTokenEnv', 'HR_API_TOKEN'),
+            userIdParam: userParam,
+            readTool: {
+              name: templateField('templateReadTool', 'fetch_employee_training'),
+              path: templateField('templateReadPath', '/api/training/summary'),
+              queryParams: [userParam],
+            },
+            writeTool: {
+              name: templateField('templateWriteTool', 'save_employee_training_review'),
+              path: templateField('templateWritePath', '/api/training/review'),
+              requireConfirmation: Boolean($('templateRequireConfirmation') && $('templateRequireConfirmation').checked),
+            },
+          }),
+        });
+        const template = data.template || data;
+        const target = $('templatePreview');
+        if (target) target.textContent = template.yaml || json(template);
+        setStatus('template generated', 'ok');
+      });
     }
 
     async function viewProjectTemplate() {
@@ -578,6 +630,7 @@ export function getMinimalUiHtml(): string {
       if (action === 'run-session') runSession();
       if (action === 'resume-session') resumeSession();
       if (action === 'refresh-current') guarded(refreshCurrent);
+      if (action === 'generate-template') generateProjectTemplate();
       if (action === 'view-template') viewProjectTemplate();
       if (action === 'download-template') downloadProjectTemplate();
       if (action === 'approve') approve(id);

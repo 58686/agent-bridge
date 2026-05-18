@@ -767,8 +767,13 @@ describe('API server', () => {
       expect(body).toContain('Readiness checks');
       expect(body).toContain('Security redaction');
       expect(body).toContain('Project template');
-      expect(body).toContain('View YAML');
-      expect(body).toContain('Download YAML');
+      expect(body).toContain('Generate YAML');
+      expect(body).toContain('Project ID');
+      expect(body).toContain('Base URL env');
+      expect(body).toContain('Read path');
+      expect(body).toContain('Write path');
+      expect(body).toContain('View default YAML');
+      expect(body).toContain('Download default YAML');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
