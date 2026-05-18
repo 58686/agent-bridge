@@ -10,8 +10,19 @@
     "agent-server": "dist/server-main.js",
     "agent-bridge": "dist/server-main.js"
   },
+  "files": [
+    "dist",
+    "docs",
+    "examples",
+    "projects",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "dev": "tsx watch src/main.ts",
     "dev:server": "tsx watch src/server-main.ts",
     "start": "node dist/main.js",
@@ -28,10 +39,22 @@
     "ai",
     "llm",
     "automation",
-    "framework"
+    "runtime",
+    "enterprise",
+    "tools",
+    "approval",
+    "audit"
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/58686/agent-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/58686/agent-bridge/issues"
+  },
+  "homepage": "https://github.com/58686/agent-bridge#readme",
   "dependencies": {
     "dotenv": "^16.3.1",
     "sql.js": "^1.14.1",
