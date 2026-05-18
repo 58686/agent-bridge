@@ -764,6 +764,7 @@ describe('API server', () => {
       expect(body).toContain('Safe runtime for connecting AI agents to company APIs, workflows, and business systems.');
       expect(body).toContain('Auto refresh every 5s');
       expect(body).toContain('Project config check');
+      expect(body).toContain('Readiness checks');
       expect(body).toContain('Security redaction');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -843,6 +844,7 @@ describe('API server', () => {
               replacement: string;
             };
           };
+          checks: Array<{ id: string; status: 'ok' | 'warning' | 'error'; message: string }>;
           toolPolicy?: {
             requireConfirmation?: boolean;
           };
@@ -861,6 +863,13 @@ describe('API server', () => {
       expect(payload.project.connectors[1].tools[0]).toMatchObject({ name: 'create_comment', method: 'POST', path: '/tickets/comment' });
       expect(payload.project.analysis).toBeUndefined();
       expect(payload.project.security).toBeUndefined();
+      expect(payload.project.checks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'model', status: 'ok' }),
+        expect.objectContaining({ id: 'tools', status: 'ok' }),
+        expect.objectContaining({ id: 'write-confirmation', status: 'ok' }),
+        expect.objectContaining({ id: 'analysis', status: 'warning' }),
+        expect.objectContaining({ id: 'redaction', status: 'warning' }),
+      ]));
       expect(payload.project.toolPolicy?.requireConfirmation).toBe(true);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -893,6 +902,7 @@ describe('API server', () => {
         project: {
           analysis?: { standardId?: string; levelsCount: number; fallbackLevel?: string; fallbackRiskLevel?: string };
           security?: { redaction?: { enabled: boolean; extraSensitiveKeys: string[]; replacement: string } };
+          checks: Array<{ id: string; status: 'ok' | 'warning' | 'error'; message: string }>;
         };
       };
 
@@ -907,6 +917,10 @@ describe('API server', () => {
         extraSensitiveKeys: ['employeeIdCard', 'mobile_phone'],
         replacement: '[MASKED]',
       });
+      expect(payload.project.checks).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'analysis', status: 'ok' }),
+        expect.objectContaining({ id: 'redaction', status: 'ok' }),
+      ]));
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

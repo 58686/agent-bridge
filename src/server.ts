@@ -64,6 +64,12 @@ export interface ApiProjectSummary {
       replacement: string;
     };
   };
+  checks: Array<{
+    id: string;
+    label: string;
+    status: 'ok' | 'warning' | 'error';
+    message: string;
+  }>;
   toolPolicy?: ProjectConfig['toolPolicy'];
   memory?: ProjectConfig['memory'];
 }
@@ -810,6 +816,32 @@ function isRetryableError(statusCode: number, code: string): boolean {
 }
 
 function buildProjectSummary(project: ProjectConfig): ApiProjectSummary {
+  const connectors = project.connectors.map((connector) => {
+    const tools = summarizeConfiguredTools(connector.config.tools);
+    return {
+      id: connector.id,
+      type: connector.type,
+      name: connector.name,
+      enabledTools: connector.enabledTools,
+      disabledTools: connector.disabledTools,
+      toolCount: tools.length,
+      tools,
+    };
+  });
+  const analysis = project.analysis ? {
+    standardId: project.analysis.standardId,
+    levelsCount: project.analysis.levels?.length ?? 0,
+    fallbackLevel: project.analysis.fallback?.level,
+    fallbackRiskLevel: project.analysis.fallback?.riskLevel,
+  } : undefined;
+  const security = project.security ? {
+    redaction: project.security.redaction ? {
+      enabled: true,
+      extraSensitiveKeys: project.security.redaction.extraSensitiveKeys ?? [],
+      replacement: project.security.redaction.replacement ?? '[REDACTED]',
+    } : undefined,
+  } : undefined;
+
   return {
     id: project.id,
     name: project.name,
@@ -820,34 +852,66 @@ function buildProjectSummary(project: ProjectConfig): ApiProjectSummary {
       temperature: project.model.temperature,
       maxTokens: project.model.maxTokens,
     },
-    connectors: project.connectors.map((connector) => {
-      const tools = summarizeConfiguredTools(connector.config.tools);
-      return {
-        id: connector.id,
-        type: connector.type,
-        name: connector.name,
-        enabledTools: connector.enabledTools,
-        disabledTools: connector.disabledTools,
-        toolCount: tools.length,
-        tools,
-      };
-    }),
-    analysis: project.analysis ? {
-      standardId: project.analysis.standardId,
-      levelsCount: project.analysis.levels?.length ?? 0,
-      fallbackLevel: project.analysis.fallback?.level,
-      fallbackRiskLevel: project.analysis.fallback?.riskLevel,
-    } : undefined,
-    security: project.security ? {
-      redaction: project.security.redaction ? {
-        enabled: true,
-        extraSensitiveKeys: project.security.redaction.extraSensitiveKeys ?? [],
-        replacement: project.security.redaction.replacement ?? '[REDACTED]',
-      } : undefined,
-    } : undefined,
+    connectors,
+    analysis,
+    security,
+    checks: buildProjectChecks(project, connectors, analysis, security),
     toolPolicy: project.toolPolicy,
     memory: project.memory,
   };
+}
+
+function buildProjectChecks(
+  project: ProjectConfig,
+  connectors: ApiProjectSummary['connectors'],
+  analysis: ApiProjectSummary['analysis'],
+  security: ApiProjectSummary['security'],
+): ApiProjectSummary['checks'] {
+  const totalTools = connectors.reduce((sum, connector) => sum + connector.toolCount, 0);
+  const writeTools = connectors.flatMap((connector) => connector.tools).filter((tool) => tool.method && tool.method !== 'GET');
+  const confirmationRules = project.toolPolicy?.confirmationRules ?? [];
+  const hasWriteConfirmation = project.toolPolicy?.requireConfirmation === true
+    || writeTools.every((tool) => confirmationRules.some((rule) => rule.tool === tool.name && rule.requireConfirmation));
+  const redactionKeys = security?.redaction?.extraSensitiveKeys ?? [];
+
+  return [
+    {
+      id: 'model',
+      label: 'Model configured',
+      status: project.model.provider && project.model.model ? 'ok' : 'error',
+      message: `${project.model.provider}:${project.model.model}`,
+    },
+    {
+      id: 'tools',
+      label: 'Company tools exposed',
+      status: totalTools > 0 ? 'ok' : 'error',
+      message: `${totalTools} tool(s) across ${connectors.length} connector(s)`,
+    },
+    {
+      id: 'write-confirmation',
+      label: 'Write tools require confirmation',
+      status: writeTools.length === 0 || hasWriteConfirmation ? 'ok' : 'warning',
+      message: writeTools.length === 0 ? 'No write tools configured' : `${writeTools.length} write tool(s) checked`,
+    },
+    {
+      id: 'analysis',
+      label: 'Analysis rules configured',
+      status: analysis && analysis.levelsCount > 0 ? 'ok' : 'warning',
+      message: analysis ? `${analysis.levelsCount} level rule(s), standard ${analysis.standardId ?? '-'}` : 'No project analysis rules configured',
+    },
+    {
+      id: 'redaction',
+      label: 'Sensitive field redaction',
+      status: security?.redaction?.enabled ? 'ok' : 'warning',
+      message: security?.redaction?.enabled ? `${redactionKeys.length} extra key(s), replacement ${security.redaction.replacement}` : 'Built-in secret redaction only',
+    },
+    {
+      id: 'memory',
+      label: 'Session memory',
+      status: project.memory?.enabled === false ? 'warning' : 'ok',
+      message: project.memory?.enabled === false ? 'Memory disabled' : `${project.memory?.type ?? 'sliding'} memory, max ${project.memory?.maxMessages ?? 'default'} messages`,
+    },
+  ];
 }
 
 function summarizeConfiguredTools(input: unknown): ApiProjectSummary['connectors'][number]['tools'] {

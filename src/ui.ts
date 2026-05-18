@@ -63,6 +63,8 @@ export function getMinimalUiHtml(): string {
     .config-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .tool-list { display: grid; gap: 4px; margin-top: 6px; }
     .tool-item { display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; font-size: 12px; }
+    .check-list { display: grid; gap: 6px; }
+    .check-item { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; background: #f8fafc; }
     .empty { padding: 12px; border: 1px dashed #d1d5db; border-radius: 12px; color: #6b7280; text-align: center; }
     .error-panel { display: none; }
     .error-panel.show { display: block; }
@@ -299,6 +301,10 @@ export function getMinimalUiHtml(): string {
         '<div class="config-title"><strong>' + escapeHtml(project.name || 'Project config') + '</strong>' + pill(project.id || 'project') + '</div>' +
         '<div class="muted">Project config check: model, tools, approval, analysis, and redaction.</div>' +
         '<div class="card">' +
+          '<strong>Readiness checks</strong>' +
+          renderProjectChecks(project.checks || []) +
+        '</div>' +
+        '<div class="card">' +
           '<strong>Model</strong>' +
           '<div class="kv" style="margin-top:8px">' +
             '<div class="k">provider</div><div>' + escapeHtml(project.model && project.model.provider || '-') + '</div>' +
@@ -325,6 +331,16 @@ export function getMinimalUiHtml(): string {
           '<div style="margin-top:6px">' + renderPolicyPills(project.toolPolicy || {}) + '</div>' +
         '</div>' +
       '</div>';
+    }
+
+    function renderProjectChecks(checks) {
+      if (!Array.isArray(checks) || !checks.length) return '<div class="empty" style="margin-top:8px">No readiness checks available</div>';
+      return '<div class="check-list" style="margin-top:8px">' + checks.map((check) =>
+        '<div class="check-item">' +
+          pill(check.status || 'warning') +
+          '<div><strong>' + escapeHtml(check.label || check.id || 'check') + '</strong><div class="muted">' + escapeHtml(check.message || '-') + '</div></div>' +
+        '</div>'
+      ).join('') + '</div>';
     }
 
     function renderConnectors(connectors) {

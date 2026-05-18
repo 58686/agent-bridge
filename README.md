@@ -47,7 +47,7 @@ Current built-in capabilities:
 - structured audit logs
 - configurable sensitive-field redaction for API responses, exports, and audit logs
 - startup project config validation
-- minimal web console at `/` with project config visualization
+- minimal web console at `/` with project config visualization and readiness checks
 
 ## Architecture
 
