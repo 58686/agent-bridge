@@ -330,6 +330,15 @@ export function getMinimalUiHtml(): string {
           '<strong>Tool policy</strong>' +
           '<div style="margin-top:6px">' + renderPolicyPills(project.toolPolicy || {}) + '</div>' +
         '</div>' +
+        '<div class="card">' +
+          '<strong>Project template</strong>' +
+          '<div class="muted" style="margin-top:6px">Generate a ready-to-edit training-analysis project.yaml for company API integration.</div>' +
+          '<div class="toolbar" style="margin-top:10px">' +
+            '<button class="ghost" data-action="view-template">View YAML</button>' +
+            '<button class="secondary" data-action="download-template">Download YAML</button>' +
+          '</div>' +
+          '<pre id="templatePreview" style="margin-top:10px; max-height:220px">Click View YAML to load the template.</pre>' +
+        '</div>' +
       '</div>';
     }
 
@@ -387,6 +396,36 @@ export function getMinimalUiHtml(): string {
       } catch (error) {
         $('project').innerHTML = 'Project requires a viewer token. If auth is disabled, you can ignore this message.';
       }
+    }
+
+    async function viewProjectTemplate() {
+      await guarded(async () => {
+        const data = await api('/project/template?scenario=training-analysis');
+        const template = data.template || data;
+        const target = $('templatePreview');
+        if (target) target.textContent = template.yaml || json(template);
+        setStatus('template loaded', 'ok');
+      });
+    }
+
+    async function downloadProjectTemplate() {
+      await guarded(async () => {
+        const response = await fetch('/project/template?scenario=training-analysis&format=yaml', { headers: tokenHeaders() });
+        const body = await response.text();
+        if (!response.ok) {
+          throw { code: 'HTTP_' + response.status, message: body || 'Template download failed', retryable: response.status >= 500, statusCode: response.status };
+        }
+        const blob = new Blob([body], { type: 'application/x-yaml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'training-analysis-project.yaml';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setStatus('template downloaded', 'ok');
+      });
     }
 
     async function loadSessions() {
@@ -539,6 +578,8 @@ export function getMinimalUiHtml(): string {
       if (action === 'run-session') runSession();
       if (action === 'resume-session') resumeSession();
       if (action === 'refresh-current') guarded(refreshCurrent);
+      if (action === 'view-template') viewProjectTemplate();
+      if (action === 'download-template') downloadProjectTemplate();
       if (action === 'approve') approve(id);
       if (action === 'reject') rejectConfirm(id);
     });

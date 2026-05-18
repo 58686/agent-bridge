@@ -766,6 +766,9 @@ describe('API server', () => {
       expect(body).toContain('Project config check');
       expect(body).toContain('Readiness checks');
       expect(body).toContain('Security redaction');
+      expect(body).toContain('Project template');
+      expect(body).toContain('View YAML');
+      expect(body).toContain('Download YAML');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
