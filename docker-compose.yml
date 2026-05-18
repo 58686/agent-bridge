@@ -11,11 +11,22 @@ services:
       - ./:/app:ro
     ports:
       - "4020:4020"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('node:http').get('http://127.0.0.1:4020/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
 
   agent-bridge:
     build: .
     depends_on:
-      - training-api
+      training-api:
+        condition: service_healthy
     environment:
       TRAINING_API_BASE_URL: http://training-api:4020
       TRAINING_API_TOKEN: example-training-token
@@ -36,6 +47,16 @@ services:
       - agent_bridge_data:/app/.agent-data
     ports:
       - "3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('node:http').get('http://127.0.0.1:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
 volumes:
   agent_bridge_data:

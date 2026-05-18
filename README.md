@@ -85,12 +85,21 @@ The compose file starts:
 
 - `agent-bridge` on port `3000`
 - a mock company training API on port `4020`
+- health checks for both services
 - persistent runtime data in the `agent_bridge_data` Docker volume
+
+For the full business walkthrough, see [Use case: Training data analysis](./docs/use-case-training-analysis.md).
 
 Try this prompt:
 
 ```text
 analyze training data for USER-001
+```
+
+Stop the demo with:
+
+```bash
+docker compose down
 ```
 
 ## Quickstart: run without any API key
@@ -528,6 +537,7 @@ If your company already has an SDK, write a custom connector that wraps the SDK 
 
 ## Documentation
 
+- [Use case: Training data analysis](./docs/use-case-training-analysis.md)
 - [Integration guide](./docs/integration-guide.md)
 - [Security model](./docs/security-model.md)
 - [HTTP API reference](./docs/api.md)
