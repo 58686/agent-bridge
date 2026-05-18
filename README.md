@@ -231,6 +231,13 @@ model:
   timeoutMs: 60000
 ```
 
+You can also fetch a ready-to-edit training-analysis project template from the running server:
+
+```bash
+curl http://127.0.0.1:3000/project/template?scenario=training-analysis
+curl "http://127.0.0.1:3000/project/template?scenario=training-analysis&format=yaml" -o training-analysis-project.yaml
+```
+
 ## Connect your own REST API in 5 minutes
 
 1. Create a project file, for example `projects/my-company/project.yaml`.
@@ -513,7 +520,7 @@ npm run test:run
 Current full regression target:
 
 ```text
-12 test files / 118 tests
+12 test files / 120 tests
 ```
 
 ## Roadmap

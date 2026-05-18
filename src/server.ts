@@ -27,6 +27,16 @@ import { AppError, NotFoundError } from './errors.js';
 import { getMinimalUiHtml } from './ui.js';
 import { configureRedaction, redactSensitiveValue } from './redaction.js';
 
+export interface ProjectTemplateResponse {
+  scenario: string;
+  name: string;
+  description: string;
+  fileName: string;
+  contentType: 'application/x-yaml';
+  yaml: string;
+  environment: string[];
+}
+
 export interface ApiProjectSummary {
   id: string;
   name: string;
@@ -472,6 +482,15 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown, r
   response.end(JSON.stringify(redactSensitiveValue(body)));
 }
 
+function sendJsonRaw(response: ServerResponse, statusCode: number, body: unknown, requestId?: string): void {
+  response.statusCode = statusCode;
+  response.setHeader('content-type', 'application/json; charset=utf-8');
+  if (requestId) {
+    response.setHeader('x-request-id', requestId);
+  }
+  response.end(JSON.stringify(body));
+}
+
 function sendText(
   response: ServerResponse,
   statusCode: number,
@@ -813,6 +832,165 @@ function isRetryableError(statusCode: number, code: string): boolean {
   }
 
   return statusCode === 408 || statusCode === 429 || statusCode >= 500;
+}
+
+function buildProjectTemplate(scenario: string | null): ProjectTemplateResponse {
+  const normalizedScenario = (scenario || 'training-analysis').trim().toLowerCase();
+  if (normalizedScenario !== 'training-analysis' && normalizedScenario !== 'default') {
+    throw new ApiHttpError(400, `Unsupported project template scenario: ${normalizedScenario}`, 'PROJECT_TEMPLATE_SCENARIO_UNSUPPORTED');
+  }
+
+  return {
+    scenario: 'training-analysis',
+    name: 'Training analysis with company API write-back',
+    description: 'Fetch employee training statistics, analyze them with configured standards, and save approved results through a company API.',
+    fileName: 'training-analysis-project.yaml',
+    contentType: 'application/x-yaml',
+    environment: ['OPENAI_API_KEY', 'TRAINING_API_BASE_URL', 'TRAINING_API_TOKEN'],
+    yaml: `id: training-analysis-agent
+name: Training Analysis Agent
+description: Fetch training stats from a company API, analyze them, and save approved results.
+
+model:
+  provider: openai
+  model: gpt-4o-mini
+  envApiKey: OPENAI_API_KEY
+  baseUrl: https://api.openai.com/v1
+  timeoutMs: 60000
+  temperature: 0.2
+  maxTokens: 1000
+
+connectors:
+  - id: company-training-api
+    type: api
+    name: Company Training API
+    config:
+      baseUrl: \${TRAINING_API_BASE_URL}
+      timeoutMs: 30000
+      auth:
+        type: bearer
+        token: \${TRAINING_API_TOKEN}
+      tools:
+        - name: get_training_stats
+          description: Get a user's training completion, exam, and overdue-course statistics.
+          method: GET
+          path: /training/stats
+          queryParams: [userId]
+          parameters:
+            userId:
+              type: string
+              description: User id, for example USER-001.
+              required: true
+
+        - name: save_training_analysis
+          description: Save the AI-generated training analysis result back to the company system.
+          method: POST
+          path: /training/analysis
+          bodyParams: [userId, standardId, scoreLevel, riskLevel, summary, recommendations, evidence]
+          parameters:
+            userId:
+              type: string
+              description: User id, for example USER-001.
+              required: true
+            standardId:
+              type: string
+              description: Analysis standard identifier.
+              required: true
+            scoreLevel:
+              type: string
+              description: Result level.
+              enum: [excellent, qualified, needs_attention]
+              required: true
+            riskLevel:
+              type: string
+              description: Risk level.
+              enum: [low, medium, high]
+              required: true
+            summary:
+              type: string
+              description: Human-readable analysis summary.
+              required: true
+            recommendations:
+              type: array
+              description: Suggested next actions.
+              required: true
+              items:
+                type: string
+                description: One recommendation.
+            evidence:
+              type: object
+              description: Key training metrics used by the analysis.
+              required: true
+              properties:
+                completionRate:
+                  type: number
+                  description: Completed required courses divided by required courses.
+                  required: true
+                averageScore:
+                  type: number
+                  description: Average exam score.
+                  required: true
+                overdueCourses:
+                  type: number
+                  description: Number of overdue required courses.
+                  required: true
+
+analysis:
+  standardId: annual-compliance-2026
+  levels:
+    - level: excellent
+      riskLevel: low
+      when:
+        completionRate:
+          gte: 0.9
+        averageScore:
+          gte: 85
+        overdueCourses:
+          eq: 0
+      recommendations:
+        - Keep the current learning cadence and consider assigning advanced courses.
+    - level: qualified
+      riskLevel: medium
+      when:
+        completionRate:
+          gte: 0.75
+        averageScore:
+          gte: 70
+      recommendations:
+        - Follow up on overdue courses and review weak knowledge areas.
+  fallback:
+    level: needs_attention
+    riskLevel: high
+    recommendations:
+      - Create a remediation plan and schedule manager follow-up.
+
+security:
+  redaction:
+    extraSensitiveKeys:
+      - employeeIdCard
+      - mobile_phone
+      - nationalId
+    replacement: '[REDACTED]'
+
+systemPrompt: |
+  You are a training analytics assistant for an enterprise learning platform.
+  First call get_training_stats, then compare the data against the Analysis configuration JSON.
+  Save the structured result by calling save_training_analysis.
+  Never invent training statistics. Use company API data as the source of truth.
+
+toolPolicy:
+  maxConsecutiveCalls: 6
+  confirmationTimeoutMs: 900000
+  confirmationRules:
+    - tool: save_training_analysis
+      requireConfirmation: true
+
+memory:
+  enabled: true
+  maxMessages: 20
+  type: sliding
+`,
+  };
 }
 
 function buildProjectSummary(project: ProjectConfig): ApiProjectSummary {
@@ -1198,6 +1376,24 @@ export function createApiServer(options: ApiServerOptions = {}): http.Server {
         };
         sendJson(response, 200, body, requestId);
         emitAudit(auditSink, request, { requestId, actor, action: 'project_summary' }, 200, 'success');
+        return;
+      }
+
+      if (request.method === 'GET' && pathname === '/project/template') {
+        requireRole(actor, options.auth, 'viewer');
+        const template = buildProjectTemplate(url.searchParams.get('scenario'));
+        const format = url.searchParams.get('format')?.toLowerCase();
+        if (format === 'yaml' || format === 'yml') {
+          sendText(response, 200, template.yaml, template.contentType, requestId, template.fileName);
+        } else {
+          sendJsonRaw(response, 200, { template }, requestId);
+        }
+        emitAudit(auditSink, request, {
+          requestId,
+          actor,
+          action: 'project_template',
+          metadata: { scenario: template.scenario, format: format || 'json' },
+        }, 200, 'success');
         return;
       }
 

@@ -791,6 +791,9 @@ describe('API server', () => {
       expect(projectResponse.status).toBe(401);
       const payload = await projectResponse.json() as { error: { code: string } };
       expect(payload.error.code).toBe('AUTH_REQUIRED');
+
+      const templateResponse = await fetch(`${baseUrl}/project/template`);
+      expect(templateResponse.status).toBe(401);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
@@ -871,6 +874,56 @@ describe('API server', () => {
         expect.objectContaining({ id: 'redaction', status: 'warning' }),
       ]));
       expect(payload.project.toolPolicy?.requireConfirmation).toBe(true);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('returns project template as JSON or YAML', async () => {
+    const { server, baseUrl } = await startTestServer();
+
+    try {
+      const jsonResponse = await fetch(`${baseUrl}/project/template?scenario=training-analysis`);
+      expect(jsonResponse.status).toBe(200);
+      const jsonPayload = await jsonResponse.json() as {
+        template: {
+          scenario: string;
+          fileName: string;
+          contentType: string;
+          environment: string[];
+          yaml: string;
+        };
+      };
+      expect(jsonPayload.template.scenario).toBe('training-analysis');
+      expect(jsonPayload.template.fileName).toBe('training-analysis-project.yaml');
+      expect(jsonPayload.template.contentType).toBe('application/x-yaml');
+      expect(jsonPayload.template.environment).toEqual(['OPENAI_API_KEY', 'TRAINING_API_BASE_URL', 'TRAINING_API_TOKEN']);
+      expect(jsonPayload.template.yaml).toContain('save_training_analysis');
+      expect(jsonPayload.template.yaml).toContain('confirmationRules:');
+      expect(jsonPayload.template.yaml).toContain('type: bearer');
+      expect(jsonPayload.template.yaml).toContain('token: ${TRAINING_API_TOKEN}');
+      expect(jsonPayload.template.yaml).not.toContain('example-training-token');
+
+      const yamlResponse = await fetch(`${baseUrl}/project/template?scenario=default&format=yaml`);
+      expect(yamlResponse.status).toBe(200);
+      expect(yamlResponse.headers.get('content-type')).toContain('application/x-yaml');
+      expect(yamlResponse.headers.get('content-disposition')).toContain('training-analysis-project.yaml');
+      const yamlBody = await yamlResponse.text();
+      expect(yamlBody).toContain('id: training-analysis-agent');
+      expect(yamlBody).toContain('token: ${TRAINING_API_TOKEN}');
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+
+  it('rejects unsupported project template scenarios', async () => {
+    const { server, baseUrl } = await startTestServer();
+
+    try {
+      const response = await fetch(`${baseUrl}/project/template?scenario=unknown`);
+      expect(response.status).toBe(400);
+      const payload = await response.json() as { error: { code: string } };
+      expect(payload.error.code).toBe('PROJECT_TEMPLATE_SCENARIO_UNSUPPORTED');
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
