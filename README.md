@@ -1,5 +1,7 @@
 # agent-bridge
 
+[![CI](https://github.com/58686/agent-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/58686/agent-bridge/actions/workflows/ci.yml)
+
 agent-bridge is a safe runtime for connecting AI agents to company tools, workflows, and APIs.
 
 - License: [MIT](./LICENSE)
